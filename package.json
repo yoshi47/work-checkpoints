@@ -3,6 +3,12 @@
   "displayName": "Work Checkpoints",
   "description": "Save and restore work snapshots using a shadow Git repository",
   "version": "0.1.0",
+  "publisher": "kururu6966",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kururu6966/work-checkpoints"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -138,9 +144,10 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/vscode": "^1.106.1",
+    "@types/vscode": "^1.57.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.7.1",
     "eslint": "^9.39.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.3"
