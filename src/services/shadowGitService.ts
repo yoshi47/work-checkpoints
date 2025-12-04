@@ -239,7 +239,7 @@ export class ShadowGitService {
   };
 
   private formatDescription = (branchName: string, timestamp: Date): string => {
-    const dateStr = timestamp.toISOString().replace('T', ' ').substring(0, 19);
+    const dateStr = timestamp.toLocaleString();
     return `${branchName} @ ${dateStr}`;
   };
 
@@ -249,13 +249,14 @@ export class ShadowGitService {
     date: string;
   }): SnapshotMetadata => {
     const message = commit.message;
-    const match = message.match(/^(.+) @ (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})$/);
+    const match = message.match(/^(.+) @ (.+)$/);
 
     if (match) {
+      const parsedDate = new Date(match[2]);
       return {
         id: commit.hash.substring(0, 7),
         branchName: match[1],
-        timestamp: new Date(match[2]),
+        timestamp: isNaN(parsedDate.getTime()) ? new Date(commit.date) : parsedDate,
         description: message,
       };
     }
