@@ -42,6 +42,21 @@
         "command": "work-checkpoints.restoreItem",
         "title": "Restore",
         "icon": "$(history)"
+      },
+      {
+        "command": "work-checkpoints.restoreFileItem",
+        "title": "Restore File",
+        "icon": "$(history)"
+      },
+      {
+        "command": "work-checkpoints.deleteFileItem",
+        "title": "Delete File",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "work-checkpoints.openFileAtRevision",
+        "title": "Open File at Revision",
+        "icon": "$(go-to-file)"
       }
     ],
     "viewsContainers": {
@@ -78,12 +93,27 @@
         {
           "command": "work-checkpoints.restoreItem",
           "when": "view == workCheckpointsView && viewItem == snapshot",
-          "group": "inline"
+          "group": "inline@1"
         },
         {
           "command": "work-checkpoints.deleteItem",
           "when": "view == workCheckpointsView && viewItem == snapshot",
-          "group": "inline"
+          "group": "inline@2"
+        },
+        {
+          "command": "work-checkpoints.openFileAtRevision",
+          "when": "view == workCheckpointsView && viewItem == snapshotFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "work-checkpoints.restoreFileItem",
+          "when": "view == workCheckpointsView && viewItem == snapshotFile",
+          "group": "inline@2"
+        },
+        {
+          "command": "work-checkpoints.deleteFileItem",
+          "when": "view == workCheckpointsView && viewItem == snapshotFile",
+          "group": "inline@3"
         }
       ]
     }

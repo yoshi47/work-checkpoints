@@ -54,6 +54,15 @@ export const activate = (context: vscode.ExtensionContext) => {
     }),
     vscode.commands.registerCommand('work-checkpoints.showFileDiff', async (item: SnapshotFileTreeItem) => {
       await showFileDiff(item);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.restoreFileItem', async (item: SnapshotFileTreeItem) => {
+      await restoreFileItem(item);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.deleteFileItem', async (item: SnapshotFileTreeItem) => {
+      await deleteFileItem(item);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.openFileAtRevision', async (item: SnapshotFileTreeItem) => {
+      await openFileAtRevision(item);
     })
   );
 
@@ -176,6 +185,91 @@ const showFileDiff = async (item: SnapshotFileTreeItem): Promise<void> => {
     currentFileUri,
     `${item.filePath} (Snapshot vs Current)`
   );
+};
+
+const restoreFileItem = async (item: SnapshotFileTreeItem): Promise<void> => {
+  const shadowGitService = snapshotTreeProvider.getShadowGitService();
+  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+
+  if (!shadowGitService || !workspaceService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const gitRoot = await workspaceService.getGitRoot();
+  if (!gitRoot) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const confirm = await vscode.window.showWarningMessage(
+    `Restore "${item.filePath}" from snapshot? This will overwrite the current file.`,
+    { modal: true },
+    'Restore',
+    'Cancel'
+  );
+
+  if (confirm !== 'Restore') {
+    return;
+  }
+
+  const files = await shadowGitService.getSnapshotFiles(item.snapshotId);
+  const content = files.get(item.filePath);
+
+  if (!content) {
+    vscode.window.showErrorMessage('File not found in snapshot.');
+    return;
+  }
+
+  const fullPath = path.join(gitRoot, item.filePath);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, content);
+
+  vscode.window.showInformationMessage(`File restored: ${item.filePath}`);
+};
+
+const deleteFileItem = async (item: SnapshotFileTreeItem): Promise<void> => {
+  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+
+  if (!workspaceService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const gitRoot = await workspaceService.getGitRoot();
+  if (!gitRoot) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const fullPath = path.join(gitRoot, item.filePath);
+
+  try {
+    await fs.access(fullPath);
+  } catch {
+    vscode.window.showWarningMessage(`File does not exist: ${item.filePath}`);
+    return;
+  }
+
+  const confirm = await vscode.window.showWarningMessage(
+    `Delete "${item.filePath}" from workspace? This action cannot be undone.`,
+    { modal: true },
+    'Delete',
+    'Cancel'
+  );
+
+  if (confirm !== 'Delete') {
+    return;
+  }
+
+  await fs.unlink(fullPath);
+  vscode.window.showInformationMessage(`File deleted: ${item.filePath}`);
+};
+
+const openFileAtRevision = async (item: SnapshotFileTreeItem): Promise<void> => {
+  const snapshotUri = SnapshotContentProvider.createUri(item.snapshotId, item.filePath);
+  const doc = await vscode.workspace.openTextDocument(snapshotUri);
+  await vscode.window.showTextDocument(doc, { preview: true });
 };
 
 export const deactivate = () => {};
