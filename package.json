@@ -87,6 +87,21 @@
         }
       ]
     },
+    "configuration": {
+      "title": "Work Checkpoints",
+      "properties": {
+        "work-checkpoints.messageFormat": {
+          "type": "string",
+          "default": "${branch} @ ${date}",
+          "description": "Snapshot message format. Variables: ${branch}, ${date}"
+        },
+        "work-checkpoints.dateFormat": {
+          "type": "string",
+          "default": "yyyy/MM/dd HH:mm:ss",
+          "description": "Date format for ${date}. Tokens: yyyy, MM, dd, HH, mm, ss"
+        }
+      }
+    },
     "menus": {
       "view/title": [
         {

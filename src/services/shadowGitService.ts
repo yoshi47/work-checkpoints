@@ -119,7 +119,11 @@ export class ShadowGitService {
     }
   };
 
-  createSnapshot = async (branchName: string): Promise<SnapshotMetadata> => {
+  createSnapshot = async (
+    branchName: string,
+    messageFormat?: string,
+    dateFormat?: string
+  ): Promise<SnapshotMetadata> => {
     await this.initializeIfNeeded();
 
     const git = this.getGit();
@@ -129,7 +133,7 @@ export class ShadowGitService {
 
     // Create commit with metadata
     const timestamp = new Date();
-    const description = this.formatDescription(branchName, timestamp);
+    const description = this.formatDescription(branchName, timestamp, messageFormat, dateFormat);
 
     try {
       await git.commit(description, { '--allow-empty': null });
@@ -238,9 +242,26 @@ export class ShadowGitService {
     await this.setRenamedMap(map);
   };
 
-  private formatDescription = (branchName: string, timestamp: Date): string => {
-    const dateStr = timestamp.toLocaleString();
-    return `${branchName} @ ${dateStr}`;
+  private formatDate = (date: Date, format: string): string => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return format
+      .replace('yyyy', date.getFullYear().toString())
+      .replace('MM', pad(date.getMonth() + 1))
+      .replace('dd', pad(date.getDate()))
+      .replace('HH', pad(date.getHours()))
+      .replace('mm', pad(date.getMinutes()))
+      .replace('ss', pad(date.getSeconds()));
+  };
+
+  private formatDescription = (
+    branchName: string,
+    timestamp: Date,
+    messageFormat?: string,
+    dateFormat?: string
+  ): string => {
+    const dateStr = this.formatDate(timestamp, dateFormat || 'yyyy/MM/dd HH:mm:ss');
+    const template = messageFormat || '${branch} @ ${date}';
+    return template.replace('${branch}', branchName).replace('${date}', dateStr);
   };
 
   private parseCommitMetadata = (commit: {

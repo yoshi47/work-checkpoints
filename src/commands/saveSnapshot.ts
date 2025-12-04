@@ -33,8 +33,12 @@ export const saveSnapshot = async (): Promise<void> => {
         workspaceService.getRemoteOriginUrl(),
       ]);
 
+      const config = vscode.workspace.getConfiguration('work-checkpoints');
+      const messageFormat = config.get<string>('messageFormat');
+      const dateFormat = config.get<string>('dateFormat');
+
       const shadowGitService = new ShadowGitService(remoteUrl, gitRoot);
-      const snapshot = await shadowGitService.createSnapshot(branchName);
+      const snapshot = await shadowGitService.createSnapshot(branchName, messageFormat, dateFormat);
 
       vscode.window.showInformationMessage(`Snapshot saved: ${snapshot.description}`);
     }

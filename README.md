@@ -46,6 +46,32 @@ Right-click on a snapshot and select **Rename** to give it a meaningful name.
 | `Work Checkpoints: Restore Snapshot` | Restore from a snapshot |
 | `Work Checkpoints: Delete Snapshots` | Delete one or more snapshots |
 
+## Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `work-checkpoints.messageFormat` | `${branch} @ ${date}` | Snapshot message format. Variables: `${branch}`, `${date}` |
+| `work-checkpoints.dateFormat` | `yyyy/MM/dd HH:mm:ss` | Date format. Tokens: `yyyy`, `MM`, `dd`, `HH`, `mm`, `ss` |
+
+### Examples
+
+```json
+{
+  "work-checkpoints.messageFormat": "[${branch}] ${date}",
+  "work-checkpoints.dateFormat": "yyyy-MM-dd HH:mm"
+}
+```
+
+Result: `[main] 2025-12-04 19:30`
+
+```json
+{
+  "work-checkpoints.dateFormat": "MM/dd HH:mm"
+}
+```
+
+Result: `main @ 12/04 19:30`
+
 ## How It Works
 
 Work Checkpoints creates a separate "shadow" Git repository to store your snapshots. This keeps your main repository clean while allowing you to save and restore work states freely.
