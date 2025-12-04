@@ -8,7 +8,7 @@ import { copyFileToShadowRepo, clearDirectory } from '../utils/fileUtils';
 
 export class ShadowGitService {
   private config: ShadowRepoConfig;
-  private git: SimpleGit;
+  private git: SimpleGit | null = null;
 
   constructor(remoteUrl: string | null, gitRoot: string) {
     const repoIdentifier = generateRepoIdentifier(remoteUrl, gitRoot);
@@ -17,21 +17,28 @@ export class ShadowGitService {
       repoIdentifier,
       shadowRepoPath: path.join(SHADOW_REPO_BASE_PATH, repoIdentifier),
     };
-    this.git = simpleGit(this.config.shadowRepoPath);
   }
 
   get shadowRepoPath(): string {
     return this.config.shadowRepoPath;
   }
 
+  private getGit = (): SimpleGit => {
+    if (!this.git) {
+      this.git = simpleGit(this.config.shadowRepoPath);
+    }
+    return this.git;
+  };
+
   initializeIfNeeded = async (): Promise<void> => {
     try {
       await fs.access(path.join(this.config.shadowRepoPath, '.git'));
     } catch {
       await fs.mkdir(this.config.shadowRepoPath, { recursive: true });
-      await this.git.init();
-      await this.git.addConfig('user.email', 'work-checkpoints@local');
-      await this.git.addConfig('user.name', 'Work Checkpoints');
+      const git = this.getGit();
+      await git.init();
+      await git.addConfig('user.email', 'work-checkpoints@local');
+      await git.addConfig('user.name', 'Work Checkpoints');
     }
   };
 
@@ -51,20 +58,21 @@ export class ShadowGitService {
     }
 
     // Stage all files
-    await this.git.add('.');
+    const git = this.getGit();
+    await git.add('.');
 
     // Create commit with metadata
     const timestamp = new Date();
     const description = this.formatDescription(branchName, timestamp);
 
     try {
-      await this.git.commit(description, { '--allow-empty': null });
+      await git.commit(description, { '--allow-empty': null });
     } catch {
       // If nothing to commit, create an empty commit
-      await this.git.commit(description, { '--allow-empty': null });
+      await git.commit(description, { '--allow-empty': null });
     }
 
-    const log = await this.git.log({ maxCount: 1 });
+    const log = await git.log({ maxCount: 1 });
     const latestCommit = log.latest;
 
     return {
@@ -83,7 +91,8 @@ export class ShadowGitService {
     }
 
     try {
-      const log = await this.git.log({ maxCount: 100 });
+      const git = this.getGit();
+      const log = await git.log({ maxCount: 100 });
       return log.all.map((commit) => this.parseCommitMetadata(commit));
     } catch {
       return [];
@@ -92,14 +101,15 @@ export class ShadowGitService {
 
   getSnapshotFiles = async (snapshotId: string): Promise<Map<string, Buffer>> => {
     const files = new Map<string, Buffer>();
+    const git = this.getGit();
 
     // Get the file list at that commit
-    const fileList = await this.git.raw(['ls-tree', '-r', '--name-only', snapshotId]);
+    const fileList = await git.raw(['ls-tree', '-r', '--name-only', snapshotId]);
     const filePaths = fileList.trim().split('\n').filter(Boolean);
 
     for (const filePath of filePaths) {
       try {
-        const content = await this.git.show([`${snapshotId}:${filePath}`]);
+        const content = await git.show([`${snapshotId}:${filePath}`]);
         files.set(filePath, Buffer.from(content, 'utf-8'));
       } catch {
         // Skip files that can't be read (binary, etc.)
@@ -113,7 +123,8 @@ export class ShadowGitService {
     // Use git rebase to remove the commit
     // This is a simplified version - in practice, we might want to use a different approach
     try {
-      await this.git.raw(['rebase', '--onto', `${snapshotId}^`, snapshotId, SNAPSHOT_BRANCH_NAME]);
+      const git = this.getGit();
+      await git.raw(['rebase', '--onto', `${snapshotId}^`, snapshotId, SNAPSHOT_BRANCH_NAME]);
     } catch {
       // If rebase fails (e.g., it's the first commit), try alternative approach
       // For now, we'll just skip

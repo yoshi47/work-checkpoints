@@ -1,0 +1,184 @@
+import * as assert from 'assert';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as os from 'os';
+import simpleGit from 'simple-git';
+import { ShadowGitService } from '../../services/shadowGitService';
+import { SHADOW_REPO_BASE_PATH } from '../../utils/constants';
+import { generateRepoIdentifier } from '../../utils/hashUtils';
+
+suite('ShadowGitService', () => {
+  let tempDir: string;
+  let workspaceDir: string;
+  let shadowGitService: ShadowGitService;
+  let repoIdentifier: string;
+
+  setup(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'work-checkpoints-test-'));
+    workspaceDir = path.join(tempDir, 'workspace');
+
+    // Create a mock workspace with git
+    await fs.mkdir(workspaceDir, { recursive: true });
+    const git = simpleGit(workspaceDir);
+    await git.init();
+    await git.addConfig('user.email', 'test@test.com');
+    await git.addConfig('user.name', 'Test User');
+
+    // Create test files
+    await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content1');
+    await fs.mkdir(path.join(workspaceDir, 'src'), { recursive: true });
+    await fs.writeFile(path.join(workspaceDir, 'src', 'index.ts'), 'console.log("hello")');
+
+    // Calculate the expected shadow repo path
+    repoIdentifier = generateRepoIdentifier(null, workspaceDir);
+
+    // Create service
+    shadowGitService = new ShadowGitService(null, workspaceDir);
+  });
+
+  teardown(async () => {
+    // Clean up temp directory
+    await fs.rm(tempDir, { recursive: true, force: true });
+
+    // Clean up shadow repo if created
+    const shadowRepoPath = path.join(SHADOW_REPO_BASE_PATH, repoIdentifier);
+    try {
+      await fs.rm(shadowRepoPath, { recursive: true, force: true });
+    } catch {
+      // Ignore if doesn't exist
+    }
+  });
+
+  suite('shadowRepoPath', () => {
+    test('should return correct shadow repo path', () => {
+      const expectedPath = path.join(SHADOW_REPO_BASE_PATH, repoIdentifier);
+      assert.strictEqual(shadowGitService.shadowRepoPath, expectedPath);
+    });
+  });
+
+  suite('initializeIfNeeded', () => {
+    test('should create shadow repo directory and initialize git', async () => {
+      await shadowGitService.initializeIfNeeded();
+
+      const shadowRepoPath = shadowGitService.shadowRepoPath;
+      const gitDirExists = await fs
+        .access(path.join(shadowRepoPath, '.git'))
+        .then(() => true)
+        .catch(() => false);
+
+      assert.strictEqual(gitDirExists, true);
+    });
+
+    test('should not reinitialize if already exists', async () => {
+      await shadowGitService.initializeIfNeeded();
+
+      // Create a file to verify it's not wiped
+      const markerPath = path.join(shadowGitService.shadowRepoPath, 'marker.txt');
+      await fs.writeFile(markerPath, 'marker');
+
+      await shadowGitService.initializeIfNeeded();
+
+      const markerExists = await fs
+        .access(markerPath)
+        .then(() => true)
+        .catch(() => false);
+
+      assert.strictEqual(markerExists, true);
+    });
+  });
+
+  suite('createSnapshot', () => {
+    test('should create a snapshot with correct metadata', async () => {
+      const files = ['file1.txt', path.join('src', 'index.ts')];
+
+      const snapshot = await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+
+      assert.ok(snapshot.id);
+      assert.strictEqual(snapshot.id.length, 7);
+      assert.strictEqual(snapshot.branchName, 'main');
+      assert.ok(snapshot.timestamp instanceof Date);
+      assert.ok(snapshot.description.includes('main @'));
+    });
+
+    test('should copy files to shadow repo', async () => {
+      const files = ['file1.txt', path.join('src', 'index.ts')];
+
+      await shadowGitService.createSnapshot(workspaceDir, 'feature/test', files);
+
+      const shadowRepoPath = shadowGitService.shadowRepoPath;
+      const file1Content = await fs.readFile(path.join(shadowRepoPath, 'file1.txt'), 'utf-8');
+      const indexContent = await fs.readFile(path.join(shadowRepoPath, 'src', 'index.ts'), 'utf-8');
+
+      assert.strictEqual(file1Content, 'content1');
+      assert.strictEqual(indexContent, 'console.log("hello")');
+    });
+
+    test('should create multiple snapshots', async () => {
+      const files = ['file1.txt'];
+
+      await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+
+      // Modify file
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified content');
+
+      await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots.length, 2);
+    });
+  });
+
+  suite('listSnapshots', () => {
+    test('should return empty array when no snapshots exist', async () => {
+      const snapshots = await shadowGitService.listSnapshots();
+
+      assert.deepStrictEqual(snapshots, []);
+    });
+
+    test('should return snapshots in reverse chronological order', async () => {
+      const files = ['file1.txt'];
+
+      await shadowGitService.createSnapshot(workspaceDir, 'branch1', files);
+      await shadowGitService.createSnapshot(workspaceDir, 'branch2', files);
+      await shadowGitService.createSnapshot(workspaceDir, 'branch3', files);
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      assert.strictEqual(snapshots.length, 3);
+      assert.strictEqual(snapshots[0].branchName, 'branch3');
+      assert.strictEqual(snapshots[1].branchName, 'branch2');
+      assert.strictEqual(snapshots[2].branchName, 'branch1');
+    });
+  });
+
+  suite('getSnapshotFiles', () => {
+    test('should return files from a specific snapshot', async () => {
+      const files = ['file1.txt', path.join('src', 'index.ts')];
+      const snapshot = await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+
+      const snapshotFiles = await shadowGitService.getSnapshotFiles(snapshot.id);
+
+      assert.strictEqual(snapshotFiles.size, 2);
+      assert.strictEqual(snapshotFiles.get('file1.txt')?.toString(), 'content1');
+      assert.strictEqual(
+        snapshotFiles.get(path.join('src', 'index.ts'))?.toString(),
+        'console.log("hello")'
+      );
+    });
+
+    test('should return correct files for older snapshot', async () => {
+      const files = ['file1.txt'];
+
+      const snapshot1 = await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+
+      // Modify file and create new snapshot
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified');
+      await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+
+      // Get files from first snapshot
+      const snapshotFiles = await shadowGitService.getSnapshotFiles(snapshot1.id);
+
+      assert.strictEqual(snapshotFiles.get('file1.txt')?.toString(), 'content1');
+    });
+  });
+});
