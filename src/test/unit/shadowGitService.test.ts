@@ -89,9 +89,7 @@ suite('ShadowGitService', () => {
 
   suite('createSnapshot', () => {
     test('should create a snapshot with correct metadata', async () => {
-      const files = ['file1.txt', path.join('src', 'index.ts')];
-
-      const snapshot = await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+      const snapshot = await shadowGitService.createSnapshot('main');
 
       assert.ok(snapshot.id);
       assert.strictEqual(snapshot.id.length, 7);
@@ -100,28 +98,25 @@ suite('ShadowGitService', () => {
       assert.ok(snapshot.description.includes('main @'));
     });
 
-    test('should copy files to shadow repo', async () => {
-      const files = ['file1.txt', path.join('src', 'index.ts')];
+    test('should track workspace files via core.worktree', async () => {
+      await shadowGitService.createSnapshot('feature/test');
 
-      await shadowGitService.createSnapshot(workspaceDir, 'feature/test', files);
+      // Verify that the snapshot includes workspace files
+      const snapshotFiles = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshotFiles.length, 1);
 
-      const shadowRepoPath = shadowGitService.shadowRepoPath;
-      const file1Content = await fs.readFile(path.join(shadowRepoPath, 'file1.txt'), 'utf-8');
-      const indexContent = await fs.readFile(path.join(shadowRepoPath, 'src', 'index.ts'), 'utf-8');
-
-      assert.strictEqual(file1Content, 'content1');
-      assert.strictEqual(indexContent, 'console.log("hello")');
+      const files = await shadowGitService.getSnapshotFiles(snapshotFiles[0].id);
+      assert.ok(files.has('file1.txt'));
+      assert.strictEqual(files.get('file1.txt')?.toString(), 'content1');
     });
 
     test('should create multiple snapshots', async () => {
-      const files = ['file1.txt'];
-
-      await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+      await shadowGitService.createSnapshot('main');
 
       // Modify file
       await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified content');
 
-      await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+      await shadowGitService.createSnapshot('main');
 
       const snapshots = await shadowGitService.listSnapshots();
       assert.strictEqual(snapshots.length, 2);
@@ -136,11 +131,9 @@ suite('ShadowGitService', () => {
     });
 
     test('should return snapshots in reverse chronological order', async () => {
-      const files = ['file1.txt'];
-
-      await shadowGitService.createSnapshot(workspaceDir, 'branch1', files);
-      await shadowGitService.createSnapshot(workspaceDir, 'branch2', files);
-      await shadowGitService.createSnapshot(workspaceDir, 'branch3', files);
+      await shadowGitService.createSnapshot('branch1');
+      await shadowGitService.createSnapshot('branch2');
+      await shadowGitService.createSnapshot('branch3');
 
       const snapshots = await shadowGitService.listSnapshots();
 
@@ -153,8 +146,7 @@ suite('ShadowGitService', () => {
 
   suite('getSnapshotFiles', () => {
     test('should return files from a specific snapshot', async () => {
-      const files = ['file1.txt', path.join('src', 'index.ts')];
-      const snapshot = await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+      const snapshot = await shadowGitService.createSnapshot('main');
 
       const snapshotFiles = await shadowGitService.getSnapshotFiles(snapshot.id);
 
@@ -167,13 +159,11 @@ suite('ShadowGitService', () => {
     });
 
     test('should return correct files for older snapshot', async () => {
-      const files = ['file1.txt'];
-
-      const snapshot1 = await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+      const snapshot1 = await shadowGitService.createSnapshot('main');
 
       // Modify file and create new snapshot
       await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified');
-      await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+      await shadowGitService.createSnapshot('main');
 
       // Get files from first snapshot
       const snapshotFiles = await shadowGitService.getSnapshotFiles(snapshot1.id);
@@ -184,11 +174,9 @@ suite('ShadowGitService', () => {
 
   suite('deleteSnapshot', () => {
     test('should remove snapshot from list after deletion', async () => {
-      const files = ['file1.txt'];
-
-      const snapshot1 = await shadowGitService.createSnapshot(workspaceDir, 'branch1', files);
-      const snapshot2 = await shadowGitService.createSnapshot(workspaceDir, 'branch2', files);
-      const snapshot3 = await shadowGitService.createSnapshot(workspaceDir, 'branch3', files);
+      const snapshot1 = await shadowGitService.createSnapshot('branch1');
+      const snapshot2 = await shadowGitService.createSnapshot('branch2');
+      const snapshot3 = await shadowGitService.createSnapshot('branch3');
 
       // Delete the middle snapshot
       await shadowGitService.deleteSnapshot(snapshot2.id);
@@ -202,11 +190,9 @@ suite('ShadowGitService', () => {
     });
 
     test('should be able to delete multiple snapshots', async () => {
-      const files = ['file1.txt'];
-
-      const snapshot1 = await shadowGitService.createSnapshot(workspaceDir, 'branch1', files);
-      const snapshot2 = await shadowGitService.createSnapshot(workspaceDir, 'branch2', files);
-      const snapshot3 = await shadowGitService.createSnapshot(workspaceDir, 'branch3', files);
+      const snapshot1 = await shadowGitService.createSnapshot('branch1');
+      const snapshot2 = await shadowGitService.createSnapshot('branch2');
+      const snapshot3 = await shadowGitService.createSnapshot('branch3');
 
       await shadowGitService.deleteSnapshot(snapshot1.id);
       await shadowGitService.deleteSnapshot(snapshot3.id);
@@ -218,9 +204,7 @@ suite('ShadowGitService', () => {
     });
 
     test('should still be able to restore deleted snapshot files', async () => {
-      const files = ['file1.txt'];
-
-      const snapshot = await shadowGitService.createSnapshot(workspaceDir, 'main', files);
+      const snapshot = await shadowGitService.createSnapshot('main');
       await shadowGitService.deleteSnapshot(snapshot.id);
 
       // Even though deleted from list, files should still be accessible

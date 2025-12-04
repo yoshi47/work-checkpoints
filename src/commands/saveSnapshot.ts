@@ -28,23 +28,15 @@ export const saveSnapshot = async (): Promise<void> => {
       cancellable: false,
     },
     async () => {
-      const [branchName, remoteUrl, files] = await Promise.all([
+      const [branchName, remoteUrl] = await Promise.all([
         workspaceService.getCurrentBranch(),
         workspaceService.getRemoteOriginUrl(),
-        workspaceService.getWorkspaceFiles(),
       ]);
 
-      if (files.length === 0) {
-        vscode.window.showWarningMessage('No files to snapshot.');
-        return;
-      }
-
       const shadowGitService = new ShadowGitService(remoteUrl, gitRoot);
-      const snapshot = await shadowGitService.createSnapshot(gitRoot, branchName, files);
+      const snapshot = await shadowGitService.createSnapshot(branchName);
 
-      vscode.window.showInformationMessage(
-        `Snapshot saved: ${snapshot.description} (${files.length} files)`
-      );
+      vscode.window.showInformationMessage(`Snapshot saved: ${snapshot.description}`);
     }
   );
 };

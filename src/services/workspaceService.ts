@@ -1,6 +1,5 @@
 import simpleGit, { SimpleGit } from 'simple-git';
 import * as path from 'path';
-import { createIgnoreFilter, getAllFiles } from '../utils/fileUtils';
 
 export class WorkspaceService {
   private workspacePath: string;
@@ -51,16 +50,6 @@ export class WorkspaceService {
     } catch {
       return false;
     }
-  };
-
-  getWorkspaceFiles = async (): Promise<string[]> => {
-    const gitRoot = await this.getGitRoot();
-    if (!gitRoot) {
-      return [];
-    }
-
-    const ig = await createIgnoreFilter(gitRoot);
-    return getAllFiles(gitRoot, ig);
   };
 
   getActualGitRoot = async (): Promise<string | null> => {

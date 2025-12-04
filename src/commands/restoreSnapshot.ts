@@ -1,10 +1,7 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs/promises';
-import * as path from 'path';
 import { WorkspaceService } from '../services/workspaceService';
 import { ShadowGitService } from '../services/shadowGitService';
 import { SnapshotMetadata } from '../types';
-import { clearDirectory } from '../utils/fileUtils';
 
 interface SnapshotQuickPickItem extends vscode.QuickPickItem {
   snapshot: SnapshotMetadata;
@@ -74,20 +71,10 @@ export const restoreSnapshot = async (): Promise<void> => {
       cancellable: false,
     },
     async () => {
-      const files = await shadowGitService.getSnapshotFiles(selected.snapshot.id);
-
-      // Clear workspace files (except .git)
-      await clearDirectory(gitRoot, true);
-
-      // Restore files from snapshot
-      for (const [filePath, content] of files) {
-        const fullPath = path.join(gitRoot, filePath);
-        await fs.mkdir(path.dirname(fullPath), { recursive: true });
-        await fs.writeFile(fullPath, content);
-      }
+      await shadowGitService.restoreSnapshot(selected.snapshot.id);
 
       vscode.window.showInformationMessage(
-        `Snapshot restored: ${selected.snapshot.description} (${files.size} files)`
+        `Snapshot restored: ${selected.snapshot.description}`
       );
     }
   );

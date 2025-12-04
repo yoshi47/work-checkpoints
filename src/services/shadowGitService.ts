@@ -4,14 +4,16 @@ import * as path from 'path';
 import { SnapshotMetadata, ShadowRepoConfig } from '../types';
 import { SHADOW_REPO_BASE_PATH } from '../utils/constants';
 import { generateRepoIdentifier } from '../utils/hashUtils';
-import { copyFileToShadowRepo, clearDirectory } from '../utils/fileUtils';
+import { writeExcludePatterns } from '../utils/excludes';
 
 export class ShadowGitService {
   private config: ShadowRepoConfig;
   private git: SimpleGit | null = null;
+  private workspacePath: string;
 
   constructor(remoteUrl: string | null, gitRoot: string) {
     const repoIdentifier = generateRepoIdentifier(remoteUrl, gitRoot);
+    this.workspacePath = gitRoot;
     this.config = {
       basePath: SHADOW_REPO_BASE_PATH,
       repoIdentifier,
@@ -33,7 +35,19 @@ export class ShadowGitService {
 
   private getGit = (): SimpleGit => {
     if (!this.git) {
-      this.git = simpleGit(this.config.shadowRepoPath);
+      // 環境変数をサニタイズ（Dev Container対応）
+      const sanitizedEnv = { ...process.env };
+      delete sanitizedEnv.GIT_DIR;
+      delete sanitizedEnv.GIT_WORK_TREE;
+      delete sanitizedEnv.GIT_INDEX_FILE;
+      delete sanitizedEnv.GIT_COMMON_DIR;
+
+      this.git = simpleGit({
+        baseDir: this.config.shadowRepoPath,
+        binary: 'git',
+        maxConcurrentProcesses: 6,
+        config: [],
+      }).env(sanitizedEnv);
     }
     return this.git;
   };
@@ -77,32 +91,40 @@ export class ShadowGitService {
   initializeIfNeeded = async (): Promise<void> => {
     try {
       await fs.access(path.join(this.config.shadowRepoPath, '.git'));
+
+      // 既存のリポジトリがある場合、core.worktree が正しく設定されているか確認
+      const git = this.getGit();
+      try {
+        const currentWorktree = await git.raw(['config', '--get', 'core.worktree']);
+        if (currentWorktree.trim() !== this.workspacePath) {
+          await git.addConfig('core.worktree', this.workspacePath);
+        }
+      } catch {
+        // core.worktree が設定されていない場合は設定する
+        await git.addConfig('core.worktree', this.workspacePath);
+      }
     } catch {
+      // Shadow repo が存在しない場合は新規作成
       await fs.mkdir(this.config.shadowRepoPath, { recursive: true });
       const git = this.getGit();
       await git.init();
+
+      // core.worktree を設定してワークスペースを直接参照
+      await git.addConfig('core.worktree', this.workspacePath);
       await git.addConfig('user.email', 'work-checkpoints@local');
       await git.addConfig('user.name', 'Work Checkpoints');
+
+      // 除外パターンを設定
+      await writeExcludePatterns(this.config.shadowRepoPath);
     }
   };
 
-  createSnapshot = async (
-    workspacePath: string,
-    branchName: string,
-    files: string[]
-  ): Promise<SnapshotMetadata> => {
+  createSnapshot = async (branchName: string): Promise<SnapshotMetadata> => {
     await this.initializeIfNeeded();
 
-    // Clear shadow repo (except .git)
-    await clearDirectory(this.config.shadowRepoPath, true);
-
-    // Copy all files to shadow repo
-    for (const file of files) {
-      await copyFileToShadowRepo(workspacePath, file, this.config.shadowRepoPath);
-    }
-
-    // Stage all files
     const git = this.getGit();
+
+    // git add . で直接ワークスペースをステージング（ファイルコピー不要！）
     await git.add('.');
 
     // Create commit with metadata
@@ -181,6 +203,16 @@ export class ShadowGitService {
     return files;
   };
 
+  restoreSnapshot = async (snapshotId: string): Promise<void> => {
+    await this.initializeIfNeeded();
+
+    const git = this.getGit();
+
+    // 未追跡ファイルを削除し、指定コミットに復元
+    await git.clean(['-f', '-d']);
+    await git.reset(['--hard', snapshotId]);
+  };
+
   deleteSnapshot = async (snapshotId: string): Promise<void> => {
     await this.addDeletedId(snapshotId);
   };
@@ -196,7 +228,11 @@ export class ShadowGitService {
     return `${branchName} @ ${dateStr}`;
   };
 
-  private parseCommitMetadata = (commit: { hash: string; message: string; date: string }): SnapshotMetadata => {
+  private parseCommitMetadata = (commit: {
+    hash: string;
+    message: string;
+    date: string;
+  }): SnapshotMetadata => {
     const message = commit.message;
     const match = message.match(/^(.+) @ (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})$/);
 

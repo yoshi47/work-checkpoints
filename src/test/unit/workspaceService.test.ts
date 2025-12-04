@@ -134,35 +134,4 @@ suite('WorkspaceService', () => {
     });
   });
 
-  suite('getWorkspaceFiles', () => {
-    test('should return all non-ignored files', async () => {
-      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content1');
-      await fs.mkdir(path.join(workspaceDir, 'src'), { recursive: true });
-      await fs.writeFile(path.join(workspaceDir, 'src', 'index.ts'), 'content2');
-
-      const files = await workspaceService.getWorkspaceFiles();
-
-      assert.ok(files.includes('file1.txt'));
-      assert.ok(files.includes(path.join('src', 'index.ts')));
-    });
-
-    test('should respect .gitignore', async () => {
-      await fs.writeFile(path.join(workspaceDir, '.gitignore'), 'ignored.txt\n');
-      await fs.writeFile(path.join(workspaceDir, 'file.txt'), 'content');
-      await fs.writeFile(path.join(workspaceDir, 'ignored.txt'), 'ignored');
-
-      const files = await workspaceService.getWorkspaceFiles();
-
-      assert.ok(files.includes('file.txt'));
-      assert.ok(!files.includes('ignored.txt'));
-    });
-
-    test('should exclude .git directory', async () => {
-      await fs.writeFile(path.join(workspaceDir, 'file.txt'), 'content');
-
-      const files = await workspaceService.getWorkspaceFiles();
-
-      assert.ok(!files.some((f) => f.startsWith('.git')));
-    });
-  });
 });

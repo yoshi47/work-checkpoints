@@ -6,7 +6,6 @@ import { restoreSnapshot } from './commands/restoreSnapshot';
 import { deleteSnapshots } from './commands/deleteSnapshots';
 import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem } from './views/snapshotTreeProvider';
 import { SnapshotContentProvider } from './providers/snapshotContentProvider';
-import { clearDirectory } from './utils/fileUtils';
 
 let snapshotTreeProvider: SnapshotTreeProvider;
 let snapshotContentProvider: SnapshotContentProvider;
@@ -87,12 +86,6 @@ const restoreSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
     return;
   }
 
-  const gitRoot = await workspaceService.getGitRoot();
-  if (!gitRoot) {
-    vscode.window.showErrorMessage('No Git repository found in workspace.');
-    return;
-  }
-
   // Check for uncommitted changes
   const hasChanges = await workspaceService.hasUncommittedChanges();
   if (hasChanges) {
@@ -114,20 +107,10 @@ const restoreSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
       cancellable: false,
     },
     async () => {
-      const files = await shadowGitService.getSnapshotFiles(item.snapshot.id);
-
-      // Clear workspace files (except .git)
-      await clearDirectory(gitRoot, true);
-
-      // Restore files from snapshot
-      for (const [filePath, content] of files) {
-        const fullPath = path.join(gitRoot, filePath);
-        await fs.mkdir(path.dirname(fullPath), { recursive: true });
-        await fs.writeFile(fullPath, content);
-      }
+      await shadowGitService.restoreSnapshot(item.snapshot.id);
 
       vscode.window.showInformationMessage(
-        `Snapshot restored: ${item.snapshot.description} (${files.size} files)`
+        `Snapshot restored: ${item.snapshot.description}`
       );
     }
   );
