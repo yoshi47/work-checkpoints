@@ -1,21 +1,31 @@
 {
   "name": "work-checkpoints",
-  "displayName": "work checkpoints",
-  "description": "",
-  "version": "0.0.1",
+  "displayName": "Work Checkpoints",
+  "description": "Save and restore work snapshots using a shadow Git repository",
+  "version": "0.1.0",
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:.git"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "work-checkpoints.helloWorld",
-        "title": "Hello World"
+        "command": "work-checkpoints.saveSnapshot",
+        "title": "Work Checkpoints: Save Snapshot"
+      },
+      {
+        "command": "work-checkpoints.restoreSnapshot",
+        "title": "Work Checkpoints: Restore Snapshot"
+      },
+      {
+        "command": "work-checkpoints.deleteSnapshots",
+        "title": "Work Checkpoints: Delete Snapshots"
       }
     ]
   },
@@ -28,13 +38,17 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.106.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.46.3",
+    "@types/vscode": "^1.106.1",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.39.1",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.46.3"
+  },
+  "dependencies": {
+    "ignore": "^7.0.5",
+    "simple-git": "^3.30.0"
   }
 }

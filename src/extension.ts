@@ -1,26 +1,16 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { saveSnapshot } from './commands/saveSnapshot';
+import { restoreSnapshot } from './commands/restoreSnapshot';
+import { deleteSnapshots } from './commands/deleteSnapshots';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+export const activate = (context: vscode.ExtensionContext) => {
+  console.log('Work Checkpoints extension is now active!');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "work-checkpoints" is now active!');
+  context.subscriptions.push(
+    vscode.commands.registerCommand('work-checkpoints.saveSnapshot', saveSnapshot),
+    vscode.commands.registerCommand('work-checkpoints.restoreSnapshot', restoreSnapshot),
+    vscode.commands.registerCommand('work-checkpoints.deleteSnapshots', deleteSnapshots)
+  );
+};
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('work-checkpoints.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from work checkpoints!');
-	});
-
-	context.subscriptions.push(disposable);
-}
-
-// This method is called when your extension is deactivated
-export function deactivate() {}
+export const deactivate = () => {};
