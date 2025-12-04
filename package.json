@@ -17,16 +17,16 @@
     "commands": [
       {
         "command": "work-checkpoints.saveSnapshot",
-        "title": "Save Snapshot",
+        "title": "Work Checkpoints: Save Snapshot",
         "icon": "$(add)"
       },
       {
         "command": "work-checkpoints.restoreSnapshot",
-        "title": "Restore Snapshot"
+        "title": "Work Checkpoints: Restore Snapshot"
       },
       {
         "command": "work-checkpoints.deleteSnapshots",
-        "title": "Delete Snapshots"
+        "title": "Work Checkpoints: Delete Snapshots"
       },
       {
         "command": "work-checkpoints.refresh",

@@ -53,8 +53,7 @@ export const deleteSnapshots = async (): Promise<void> => {
   const confirm = await vscode.window.showWarningMessage(
     `Delete ${selected.length} snapshot(s)? This action cannot be undone.`,
     { modal: true },
-    'Delete',
-    'Cancel'
+    'Delete'
   );
 
   if (confirm !== 'Delete') {

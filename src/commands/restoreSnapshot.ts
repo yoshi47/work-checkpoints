@@ -59,8 +59,7 @@ export const restoreSnapshot = async (): Promise<void> => {
     const confirm = await vscode.window.showWarningMessage(
       'You have uncommitted changes. Restoring will overwrite your current work.',
       { modal: true },
-      'Restore Anyway',
-      'Cancel'
+      'Restore Anyway'
     );
 
     if (confirm !== 'Restore Anyway') {

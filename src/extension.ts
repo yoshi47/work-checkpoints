@@ -95,8 +95,7 @@ const restoreSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
     const confirm = await vscode.window.showWarningMessage(
       'You have uncommitted changes. Restoring will overwrite your current work.',
       { modal: true },
-      'Restore Anyway',
-      'Cancel'
+      'Restore Anyway'
     );
 
     if (confirm !== 'Restore Anyway') {
@@ -141,8 +140,7 @@ const deleteSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
   const confirm = await vscode.window.showWarningMessage(
     `Delete snapshot "${item.snapshot.description}"? This action cannot be undone.`,
     { modal: true },
-    'Delete',
-    'Cancel'
+    'Delete'
   );
 
   if (confirm !== 'Delete') {
@@ -205,8 +203,7 @@ const restoreFileItem = async (item: SnapshotFileTreeItem): Promise<void> => {
   const confirm = await vscode.window.showWarningMessage(
     `Restore "${item.filePath}" from snapshot? This will overwrite the current file.`,
     { modal: true },
-    'Restore',
-    'Cancel'
+    'Restore'
   );
 
   if (confirm !== 'Restore') {
@@ -254,8 +251,7 @@ const deleteFileItem = async (item: SnapshotFileTreeItem): Promise<void> => {
   const confirm = await vscode.window.showWarningMessage(
     `Delete "${item.filePath}" from workspace? This action cannot be undone.`,
     { modal: true },
-    'Delete',
-    'Cancel'
+    'Delete'
   );
 
   if (confirm !== 'Delete') {
