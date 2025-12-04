@@ -94,9 +94,9 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     }
 
     try {
-      // ファイル一覧を返す（スナップショットの子要素）
+      // 差分ファイル一覧を返す（スナップショットの子要素）
       if (element instanceof SnapshotTreeItem) {
-        const fileNames = await this.shadowGitService.getSnapshotFileNames(element.snapshot.id);
+        const fileNames = await this.shadowGitService.getSnapshotDiffFiles(element.snapshot.id);
         return fileNames.map((filePath) => new SnapshotFileTreeItem(filePath, element.snapshot.id));
       }
 

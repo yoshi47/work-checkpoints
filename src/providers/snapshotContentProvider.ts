@@ -20,9 +20,7 @@ export class SnapshotContentProvider implements vscode.TextDocumentContentProvid
     const filePath = pathParts.join('/');
 
     try {
-      const files = await this.shadowGitService.getSnapshotFiles(snapshotId);
-      const content = files.get(filePath);
-      return content?.toString('utf-8') ?? '';
+      return await this.shadowGitService.getSnapshotFileContent(snapshotId, filePath);
     } catch {
       return '';
     }
