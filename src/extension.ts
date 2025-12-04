@@ -4,16 +4,27 @@ import * as path from 'path';
 import { saveSnapshot } from './commands/saveSnapshot';
 import { restoreSnapshot } from './commands/restoreSnapshot';
 import { deleteSnapshots } from './commands/deleteSnapshots';
-import { SnapshotTreeProvider, SnapshotTreeItem } from './views/snapshotTreeProvider';
+import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem } from './views/snapshotTreeProvider';
+import { SnapshotContentProvider } from './providers/snapshotContentProvider';
 import { clearDirectory } from './utils/fileUtils';
 
 let snapshotTreeProvider: SnapshotTreeProvider;
+let snapshotContentProvider: SnapshotContentProvider;
 
 export const activate = (context: vscode.ExtensionContext) => {
   console.log('Work Checkpoints extension is now active!');
 
+  // Create and register ContentProvider
+  snapshotContentProvider = new SnapshotContentProvider();
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(
+      SnapshotContentProvider.scheme,
+      snapshotContentProvider
+    )
+  );
+
   // Create and register TreeView
-  snapshotTreeProvider = new SnapshotTreeProvider();
+  snapshotTreeProvider = new SnapshotTreeProvider(snapshotContentProvider);
   const treeView = vscode.window.createTreeView('workCheckpointsView', {
     treeDataProvider: snapshotTreeProvider,
     showCollapseAll: false,
@@ -40,6 +51,9 @@ export const activate = (context: vscode.ExtensionContext) => {
     vscode.commands.registerCommand('work-checkpoints.deleteItem', async (item: SnapshotTreeItem) => {
       await deleteSnapshotItem(item);
       snapshotTreeProvider.refresh();
+    }),
+    vscode.commands.registerCommand('work-checkpoints.showFileDiff', async (item: SnapshotFileTreeItem) => {
+      await showFileDiff(item);
     })
   );
 
@@ -136,6 +150,31 @@ const deleteSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
       await shadowGitService.deleteSnapshot(item.snapshot.id);
       vscode.window.showInformationMessage('Snapshot deleted.');
     }
+  );
+};
+
+const showFileDiff = async (item: SnapshotFileTreeItem): Promise<void> => {
+  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+
+  if (!workspaceService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const gitRoot = await workspaceService.getGitRoot();
+  if (!gitRoot) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const snapshotUri = SnapshotContentProvider.createUri(item.snapshotId, item.filePath);
+  const currentFileUri = vscode.Uri.file(path.join(gitRoot, item.filePath));
+
+  await vscode.commands.executeCommand(
+    'vscode.diff',
+    snapshotUri,
+    currentFileUri,
+    `${item.filePath} (Snapshot vs Current)`
   );
 };
 

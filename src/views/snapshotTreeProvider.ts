@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { WorkspaceService } from '../services/workspaceService';
 import { ShadowGitService } from '../services/shadowGitService';
+import { SnapshotContentProvider } from '../providers/snapshotContentProvider';
 import { SnapshotMetadata } from '../types';
 
 export class SnapshotTreeItem extends vscode.TreeItem {
@@ -29,6 +30,12 @@ export class SnapshotFileTreeItem extends vscode.TreeItem {
     this.contextValue = 'snapshotFile';
 
     this.iconPath = vscode.ThemeIcon.File;
+
+    this.command = {
+      command: 'work-checkpoints.showFileDiff',
+      title: 'Show Diff',
+      arguments: [this],
+    };
   }
 }
 
@@ -41,7 +48,7 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   private shadowGitService: ShadowGitService | null = null;
   private workspaceService: WorkspaceService | null = null;
 
-  constructor() {
+  constructor(private readonly snapshotContentProvider: SnapshotContentProvider) {
     this.initializeServices();
   }
 
@@ -64,6 +71,7 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
     const remoteUrl = await workspaceService.getRemoteOriginUrl();
     this.shadowGitService = new ShadowGitService(remoteUrl, gitRoot);
+    this.snapshotContentProvider.setShadowGitService(this.shadowGitService);
   }
 
   refresh(): void {
