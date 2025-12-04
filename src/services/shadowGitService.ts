@@ -27,6 +27,10 @@ export class ShadowGitService {
     return path.join(this.config.shadowRepoPath, '.deleted');
   }
 
+  private get renamedFilePath(): string {
+    return path.join(this.config.shadowRepoPath, '.renamed');
+  }
+
   private getGit = (): SimpleGit => {
     if (!this.git) {
       this.git = simpleGit(this.config.shadowRepoPath);
@@ -47,6 +51,27 @@ export class ShadowGitService {
     const deletedIds = await this.getDeletedIds();
     deletedIds.add(id);
     await fs.writeFile(this.deletedFilePath, [...deletedIds].join('\n'));
+  };
+
+  private getRenamedMap = async (): Promise<Map<string, string>> => {
+    try {
+      const content = await fs.readFile(this.renamedFilePath, 'utf-8');
+      const map = new Map<string, string>();
+      for (const line of content.split('\n').filter(Boolean)) {
+        const [id, name] = line.split('\t');
+        if (id && name) {
+          map.set(id, name);
+        }
+      }
+      return map;
+    } catch {
+      return new Map();
+    }
+  };
+
+  private setRenamedMap = async (map: Map<string, string>): Promise<void> => {
+    const lines = [...map.entries()].map(([id, name]) => `${id}\t${name}`);
+    await fs.writeFile(this.renamedFilePath, lines.join('\n'));
   };
 
   initializeIfNeeded = async (): Promise<void> => {
@@ -113,10 +138,18 @@ export class ShadowGitService {
       const git = this.getGit();
       const log = await git.log({ maxCount: 100 });
       const deletedIds = await this.getDeletedIds();
+      const renamedMap = await this.getRenamedMap();
 
       return log.all
         .map((commit) => this.parseCommitMetadata(commit))
-        .filter((snapshot) => !deletedIds.has(snapshot.id));
+        .filter((snapshot) => !deletedIds.has(snapshot.id))
+        .map((snapshot) => {
+          const renamedDescription = renamedMap.get(snapshot.id);
+          if (renamedDescription) {
+            return { ...snapshot, description: renamedDescription };
+          }
+          return snapshot;
+        });
     } catch {
       return [];
     }
@@ -150,6 +183,12 @@ export class ShadowGitService {
 
   deleteSnapshot = async (snapshotId: string): Promise<void> => {
     await this.addDeletedId(snapshotId);
+  };
+
+  renameSnapshot = async (snapshotId: string, newName: string): Promise<void> => {
+    const map = await this.getRenamedMap();
+    map.set(snapshotId, newName);
+    await this.setRenamedMap(map);
   };
 
   private formatDescription = (branchName: string, timestamp: Date): string => {

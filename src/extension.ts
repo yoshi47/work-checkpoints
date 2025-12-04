@@ -52,6 +52,10 @@ export const activate = (context: vscode.ExtensionContext) => {
       await deleteSnapshotItem(item);
       snapshotTreeProvider.refresh();
     }),
+    vscode.commands.registerCommand('work-checkpoints.renameItem', async (item: SnapshotTreeItem) => {
+      await renameSnapshotItem(item);
+      snapshotTreeProvider.refresh();
+    }),
     vscode.commands.registerCommand('work-checkpoints.showFileDiff', async (item: SnapshotFileTreeItem) => {
       await showFileDiff(item);
     }),
@@ -127,6 +131,27 @@ const restoreSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
       );
     }
   );
+};
+
+const renameSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
+  const shadowGitService = snapshotTreeProvider.getShadowGitService();
+
+  if (!shadowGitService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const newName = await vscode.window.showInputBox({
+    prompt: 'Enter new name for snapshot',
+    value: item.snapshot.description,
+  });
+
+  if (!newName) {
+    return;
+  }
+
+  await shadowGitService.renameSnapshot(item.snapshot.id, newName);
+  vscode.window.showInformationMessage(`Snapshot renamed to: ${newName}`);
 };
 
 const deleteSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {

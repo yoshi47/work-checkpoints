@@ -44,6 +44,11 @@
         "icon": "$(history)"
       },
       {
+        "command": "work-checkpoints.renameItem",
+        "title": "Rename",
+        "icon": "$(edit)"
+      },
+      {
         "command": "work-checkpoints.restoreFileItem",
         "title": "Restore File",
         "icon": "$(history)"
@@ -99,6 +104,10 @@
           "command": "work-checkpoints.deleteItem",
           "when": "view == workCheckpointsView && viewItem == snapshot",
           "group": "inline@2"
+        },
+        {
+          "command": "work-checkpoints.renameItem",
+          "when": "view == workCheckpointsView && viewItem == snapshot"
         },
         {
           "command": "work-checkpoints.openFileAtRevision",
