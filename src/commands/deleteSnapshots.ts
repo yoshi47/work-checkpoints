@@ -15,13 +15,16 @@ export const deleteSnapshots = async (): Promise<void> => {
   }
 
   const workspacePath = workspaceFolders[0].uri.fsPath;
-  const workspaceService = new WorkspaceService(workspacePath);
+  let workspaceService = new WorkspaceService(workspacePath);
 
   const gitRoot = await workspaceService.getGitRoot();
   if (!gitRoot) {
     vscode.window.showErrorMessage('No Git repository found in workspace.');
     return;
   }
+
+  // Re-initialize with git root to ensure correct git operations
+  workspaceService = new WorkspaceService(gitRoot);
 
   const remoteUrl = await workspaceService.getRemoteOriginUrl();
   const shadowGitService = new ShadowGitService(remoteUrl, gitRoot);

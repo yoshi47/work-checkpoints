@@ -22,8 +22,13 @@ export class WorkspaceService {
 
   getCurrentBranch = async (): Promise<string> => {
     try {
+      const status = await this.git.status();
+      if (status.current) {
+        return status.current;
+      }
+      // Fallback to rev-parse for detached HEAD
       const branch = await this.git.revparse(['--abbrev-ref', 'HEAD']);
-      return branch.trim();
+      return branch.trim() || 'unknown';
     } catch {
       return 'unknown';
     }
