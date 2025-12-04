@@ -94,10 +94,17 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     }
 
     try {
-      // 差分ファイル一覧を返す（スナップショットの子要素）
+      // メインリポのHEADとの差分ファイル一覧を返す（スナップショットの子要素）
       if (element instanceof SnapshotTreeItem) {
-        const fileNames = await this.shadowGitService.getSnapshotDiffFiles(element.snapshot.id);
-        return fileNames.map((filePath) => new SnapshotFileTreeItem(filePath, element.snapshot.id));
+        const headHash = await this.workspaceService?.getHeadCommitHash();
+        if (headHash) {
+          const fileNames = await this.shadowGitService.getSnapshotDiffFilesFromHead(
+            element.snapshot.id,
+            headHash
+          );
+          return fileNames.map((filePath) => new SnapshotFileTreeItem(filePath, element.snapshot.id));
+        }
+        return [];
       }
 
       // スナップショット一覧を返す（ルート）

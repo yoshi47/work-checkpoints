@@ -183,19 +183,9 @@ export class ShadowGitService {
     return fileList.trim().split('\n').filter(Boolean);
   };
 
-  getSnapshotDiffFiles = async (snapshotId: string): Promise<string[]> => {
+  getSnapshotDiffFilesFromHead = async (snapshotId: string, headHash: string): Promise<string[]> => {
     const git = this.getGit();
-
-    // 前のコミットを取得
-    const parentHash = await git.raw(['rev-parse', `${snapshotId}^`]).catch(() => null);
-
-    if (!parentHash) {
-      // 最初のコミットの場合は全ファイルを返す
-      return this.getSnapshotFileNames(snapshotId);
-    }
-
-    // 差分ファイルのみ取得
-    const diff = await git.diffSummary([`${parentHash.trim()}..${snapshotId}`]);
+    const diff = await git.diffSummary([`${headHash}..${snapshotId}`]);
     return diff.files.map((f) => f.file);
   };
 

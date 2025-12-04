@@ -52,6 +52,15 @@ export class WorkspaceService {
     }
   };
 
+  getHeadCommitHash = async (): Promise<string | null> => {
+    try {
+      const hash = await this.git.revparse(['HEAD']);
+      return hash.trim();
+    } catch {
+      return null;
+    }
+  };
+
   getActualGitRoot = async (): Promise<string | null> => {
     try {
       // For worktrees, get the actual main repository path
