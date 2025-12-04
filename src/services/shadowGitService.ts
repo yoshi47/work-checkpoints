@@ -2,7 +2,7 @@ import simpleGit, { SimpleGit } from 'simple-git';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { SnapshotMetadata, ShadowRepoConfig } from '../types';
-import { SHADOW_REPO_BASE_PATH, SNAPSHOT_BRANCH_NAME } from '../utils/constants';
+import { SHADOW_REPO_BASE_PATH } from '../utils/constants';
 import { generateRepoIdentifier } from '../utils/hashUtils';
 import { copyFileToShadowRepo, clearDirectory } from '../utils/fileUtils';
 
@@ -23,11 +23,30 @@ export class ShadowGitService {
     return this.config.shadowRepoPath;
   }
 
+  private get deletedFilePath(): string {
+    return path.join(this.config.shadowRepoPath, '.deleted');
+  }
+
   private getGit = (): SimpleGit => {
     if (!this.git) {
       this.git = simpleGit(this.config.shadowRepoPath);
     }
     return this.git;
+  };
+
+  private getDeletedIds = async (): Promise<Set<string>> => {
+    try {
+      const content = await fs.readFile(this.deletedFilePath, 'utf-8');
+      return new Set(content.split('\n').filter(Boolean));
+    } catch {
+      return new Set();
+    }
+  };
+
+  private addDeletedId = async (id: string): Promise<void> => {
+    const deletedIds = await this.getDeletedIds();
+    deletedIds.add(id);
+    await fs.writeFile(this.deletedFilePath, [...deletedIds].join('\n'));
   };
 
   initializeIfNeeded = async (): Promise<void> => {
@@ -93,10 +112,20 @@ export class ShadowGitService {
     try {
       const git = this.getGit();
       const log = await git.log({ maxCount: 100 });
-      return log.all.map((commit) => this.parseCommitMetadata(commit));
+      const deletedIds = await this.getDeletedIds();
+
+      return log.all
+        .map((commit) => this.parseCommitMetadata(commit))
+        .filter((snapshot) => !deletedIds.has(snapshot.id));
     } catch {
       return [];
     }
+  };
+
+  getSnapshotFileNames = async (snapshotId: string): Promise<string[]> => {
+    const git = this.getGit();
+    const fileList = await git.raw(['ls-tree', '-r', '--name-only', snapshotId]);
+    return fileList.trim().split('\n').filter(Boolean);
   };
 
   getSnapshotFiles = async (snapshotId: string): Promise<Map<string, Buffer>> => {
@@ -120,15 +149,7 @@ export class ShadowGitService {
   };
 
   deleteSnapshot = async (snapshotId: string): Promise<void> => {
-    // Use git rebase to remove the commit
-    // This is a simplified version - in practice, we might want to use a different approach
-    try {
-      const git = this.getGit();
-      await git.raw(['rebase', '--onto', `${snapshotId}^`, snapshotId, SNAPSHOT_BRANCH_NAME]);
-    } catch {
-      // If rebase fails (e.g., it's the first commit), try alternative approach
-      // For now, we'll just skip
-    }
+    await this.addDeletedId(snapshotId);
   };
 
   private formatDescription = (branchName: string, timestamp: Date): string => {

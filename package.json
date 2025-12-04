@@ -17,17 +17,76 @@
     "commands": [
       {
         "command": "work-checkpoints.saveSnapshot",
-        "title": "Work Checkpoints: Save Snapshot"
+        "title": "Save Snapshot",
+        "icon": "$(add)"
       },
       {
         "command": "work-checkpoints.restoreSnapshot",
-        "title": "Work Checkpoints: Restore Snapshot"
+        "title": "Restore Snapshot"
       },
       {
         "command": "work-checkpoints.deleteSnapshots",
-        "title": "Work Checkpoints: Delete Snapshots"
+        "title": "Delete Snapshots"
+      },
+      {
+        "command": "work-checkpoints.refresh",
+        "title": "Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "work-checkpoints.deleteItem",
+        "title": "Delete",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "work-checkpoints.restoreItem",
+        "title": "Restore",
+        "icon": "$(history)"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "work-checkpoints",
+          "title": "Work Checkpoints",
+          "icon": "resources/checkpoint.svg"
+        }
+      ]
+    },
+    "views": {
+      "work-checkpoints": [
+        {
+          "id": "workCheckpointsView",
+          "name": "Snapshots"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "work-checkpoints.saveSnapshot",
+          "when": "view == workCheckpointsView",
+          "group": "navigation"
+        },
+        {
+          "command": "work-checkpoints.refresh",
+          "when": "view == workCheckpointsView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "work-checkpoints.restoreItem",
+          "when": "view == workCheckpointsView && viewItem == snapshot",
+          "group": "inline"
+        },
+        {
+          "command": "work-checkpoints.deleteItem",
+          "when": "view == workCheckpointsView && viewItem == snapshot",
+          "group": "inline"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
