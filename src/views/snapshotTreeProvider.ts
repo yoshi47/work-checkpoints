@@ -46,7 +46,7 @@ export class SnapshotFolderTreeItem extends vscode.TreeItem {
     public readonly snapshotId: string,
     public readonly childPaths: string[]
   ) {
-    super(path.basename(folderPath), vscode.TreeItemCollapsibleState.Collapsed);
+    super(path.basename(folderPath), vscode.TreeItemCollapsibleState.Expanded);
     this.tooltip = folderPath;
     this.contextValue = 'snapshotFolder';
     this.iconPath = vscode.ThemeIcon.Folder;
