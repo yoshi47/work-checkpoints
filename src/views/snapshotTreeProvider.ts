@@ -12,7 +12,7 @@ export class SnapshotTreeItem extends vscode.TreeItem {
   ) {
     super(snapshot.description, collapsibleState);
 
-    this.tooltip = `ID: ${snapshot.id}\nBranch: ${snapshot.branchName}\nDate: ${snapshot.timestamp.toLocaleString()}`;
+    this.tooltip = `${snapshot.description}\n\nBranch: ${snapshot.branchName}\nDate: ${snapshot.timestamp.toLocaleString()}`;
     this.description = snapshot.id;
     this.contextValue = 'snapshot';
   }
