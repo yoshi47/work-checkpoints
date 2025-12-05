@@ -78,6 +78,11 @@
         "command": "work-checkpoints.viewAsList",
         "title": "View as List",
         "icon": "$(list-flat)"
+      },
+      {
+        "command": "work-checkpoints.deleteAll",
+        "title": "Delete All Snapshots",
+        "icon": "$(trash)"
       }
     ],
     "viewsContainers": {
@@ -133,6 +138,11 @@
           "command": "work-checkpoints.saveSnapshot",
           "when": "view == workCheckpointsView",
           "group": "navigation@3"
+        },
+        {
+          "command": "work-checkpoints.deleteAll",
+          "when": "view == workCheckpointsView",
+          "group": "2_delete"
         }
       ],
       "view/item/context": [

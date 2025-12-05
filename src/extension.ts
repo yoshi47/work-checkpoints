@@ -77,6 +77,10 @@ export const activate = (context: vscode.ExtensionContext) => {
     vscode.commands.registerCommand('work-checkpoints.viewAsList', () => {
       snapshotTreeProvider.toggleViewMode();
       vscode.commands.executeCommand('setContext', 'workCheckpoints.treeViewMode', false);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.deleteAll', async () => {
+      await deleteAllSnapshots();
+      snapshotTreeProvider.refresh();
     })
   );
 
@@ -177,6 +181,46 @@ const deleteSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
       vscode.window.showInformationMessage('Snapshot deleted.');
     }
   );
+};
+
+const deleteAllSnapshots = async (): Promise<void> => {
+  const shadowGitService = snapshotTreeProvider.getShadowGitService();
+
+  if (!shadowGitService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const snapshots = await shadowGitService.listSnapshots();
+  if (snapshots.length === 0) {
+    vscode.window.showInformationMessage('No snapshots to delete.');
+    return;
+  }
+
+  const confirm = await vscode.window.showWarningMessage(
+    `Delete all ${snapshots.length} snapshot(s)? This action cannot be undone.`,
+    { modal: true },
+    'Delete All'
+  );
+
+  if (confirm !== 'Delete All') {
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'Deleting all snapshots...',
+      cancellable: false,
+    },
+    async () => {
+      for (const snapshot of snapshots) {
+        await shadowGitService.deleteSnapshot(snapshot.id);
+      }
+    }
+  );
+
+  vscode.window.showInformationMessage(`Deleted ${snapshots.length} snapshot(s).`);
 };
 
 const showFileDiff = async (item: SnapshotFileTreeItem): Promise<void> => {
