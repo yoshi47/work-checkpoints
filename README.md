@@ -80,6 +80,20 @@ Work Checkpoints creates a separate "shadow" Git repository to store your snapsh
 - Each project has its own shadow repository
 - Your main Git history is never affected
 
+## Claude Code Plugin
+
+Use the same checkpoint functionality in Claude Code. Automatically creates a checkpoint every time you send a message.
+
+**Install:**
+```
+/plugin install work-checkpoints@kururu6966
+```
+
+**Features:**
+- Auto-save on `UserPromptSubmit` hook
+- Shares the same shadow repository with the VSCode extension
+- Compatible with checkpoints created from VSCode
+
 ## Requirements
 
 - Git must be installed and available in your PATH
