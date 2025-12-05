@@ -97,7 +97,7 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
   private shadowGitService: ShadowGitService | null = null;
   private workspaceService: WorkspaceService | null = null;
-  private treeViewMode: boolean = false;
+  private treeViewMode: boolean = true;
 
   constructor(private readonly snapshotContentProvider: SnapshotContentProvider) {
     this.initializeServices();
