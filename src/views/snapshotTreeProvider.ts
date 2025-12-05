@@ -21,12 +21,13 @@ export class SnapshotTreeItem extends vscode.TreeItem {
 export class SnapshotFileTreeItem extends vscode.TreeItem {
   constructor(
     public readonly filePath: string,
-    public readonly snapshotId: string
+    public readonly snapshotId: string,
+    showPath: boolean = true
   ) {
     super(path.basename(filePath), vscode.TreeItemCollapsibleState.None);
 
     this.tooltip = filePath;
-    this.description = path.dirname(filePath) === '.' ? '' : path.dirname(filePath);
+    this.description = showPath && path.dirname(filePath) !== '.' ? path.dirname(filePath) : '';
     this.contextValue = 'snapshotFile';
 
     this.iconPath = vscode.ThemeIcon.File;
@@ -39,7 +40,56 @@ export class SnapshotFileTreeItem extends vscode.TreeItem {
   }
 }
 
-type TreeItem = SnapshotTreeItem | SnapshotFileTreeItem;
+export class SnapshotFolderTreeItem extends vscode.TreeItem {
+  constructor(
+    public readonly folderPath: string,
+    public readonly snapshotId: string,
+    public readonly childPaths: string[]
+  ) {
+    super(path.basename(folderPath), vscode.TreeItemCollapsibleState.Collapsed);
+    this.tooltip = folderPath;
+    this.contextValue = 'snapshotFolder';
+    this.iconPath = vscode.ThemeIcon.Folder;
+  }
+}
+
+type TreeItem = SnapshotTreeItem | SnapshotFolderTreeItem | SnapshotFileTreeItem;
+
+const buildTreeItems = (
+  filePaths: string[],
+  snapshotId: string,
+  parentPath: string = ''
+): TreeItem[] => {
+  const items: TreeItem[] = [];
+  const folders = new Map<string, string[]>();
+  const files: string[] = [];
+
+  for (const filePath of filePaths) {
+    const relativePath = parentPath ? filePath.slice(parentPath.length + 1) : filePath;
+    const firstSlash = relativePath.indexOf('/');
+
+    if (firstSlash === -1) {
+      files.push(filePath);
+    } else {
+      const folderName = relativePath.slice(0, firstSlash);
+      const folderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
+      if (!folders.has(folderPath)) {
+        folders.set(folderPath, []);
+      }
+      folders.get(folderPath)!.push(filePath);
+    }
+  }
+
+  for (const [folderPath, childPaths] of folders) {
+    items.push(new SnapshotFolderTreeItem(folderPath, snapshotId, childPaths));
+  }
+
+  for (const filePath of files) {
+    items.push(new SnapshotFileTreeItem(filePath, snapshotId, false));
+  }
+
+  return items;
+};
 
 export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<TreeItem | undefined | null | void>();
@@ -47,9 +97,19 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
   private shadowGitService: ShadowGitService | null = null;
   private workspaceService: WorkspaceService | null = null;
+  private treeViewMode: boolean = false;
 
   constructor(private readonly snapshotContentProvider: SnapshotContentProvider) {
     this.initializeServices();
+  }
+
+  toggleViewMode(): void {
+    this.treeViewMode = !this.treeViewMode;
+    this._onDidChangeTreeData.fire();
+  }
+
+  isTreeViewMode(): boolean {
+    return this.treeViewMode;
   }
 
   private async initializeServices(): Promise<void> {
@@ -94,17 +154,20 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     }
 
     try {
-      // メインリポのHEADとの差分ファイル一覧を返す（スナップショットの子要素）
+      // スナップショットの子要素
       if (element instanceof SnapshotTreeItem) {
-        const headHash = await this.workspaceService?.getHeadCommitHash();
-        if (headHash) {
-          const fileNames = await this.shadowGitService.getSnapshotDiffFilesFromHead(
-            element.snapshot.id,
-            headHash
-          );
-          return fileNames.map((filePath) => new SnapshotFileTreeItem(filePath, element.snapshot.id));
+        const fileNames = await this.shadowGitService.getSnapshotDiffFiles(element.snapshot.id);
+
+        if (this.treeViewMode) {
+          return buildTreeItems(fileNames, element.snapshot.id);
+        } else {
+          return fileNames.map((filePath) => new SnapshotFileTreeItem(filePath, element.snapshot.id, true));
         }
-        return [];
+      }
+
+      // フォルダの子要素（ツリーモード時のみ）
+      if (element instanceof SnapshotFolderTreeItem) {
+        return buildTreeItems(element.childPaths, element.snapshotId, element.folderPath);
       }
 
       // スナップショット一覧を返す（ルート）

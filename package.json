@@ -68,6 +68,16 @@
         "command": "work-checkpoints.openFileAtRevision",
         "title": "Open File at Revision",
         "icon": "$(go-to-file)"
+      },
+      {
+        "command": "work-checkpoints.viewAsTree",
+        "title": "View as Tree",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "work-checkpoints.viewAsList",
+        "title": "View as List",
+        "icon": "$(list-flat)"
       }
     ],
     "viewsContainers": {
@@ -105,14 +115,24 @@
     "menus": {
       "view/title": [
         {
-          "command": "work-checkpoints.saveSnapshot",
-          "when": "view == workCheckpointsView",
-          "group": "navigation"
+          "command": "work-checkpoints.viewAsTree",
+          "when": "view == workCheckpointsView && !workCheckpoints.treeViewMode",
+          "group": "navigation@1"
+        },
+        {
+          "command": "work-checkpoints.viewAsList",
+          "when": "view == workCheckpointsView && workCheckpoints.treeViewMode",
+          "group": "navigation@1"
         },
         {
           "command": "work-checkpoints.refresh",
           "when": "view == workCheckpointsView",
-          "group": "navigation"
+          "group": "navigation@2"
+        },
+        {
+          "command": "work-checkpoints.saveSnapshot",
+          "when": "view == workCheckpointsView",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [

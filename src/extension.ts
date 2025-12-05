@@ -29,6 +29,9 @@ export const activate = (context: vscode.ExtensionContext) => {
     showCollapseAll: false,
   });
 
+  // Initialize context for tree view mode
+  vscode.commands.executeCommand('setContext', 'workCheckpoints.treeViewMode', false);
+
   // Register commands
   context.subscriptions.push(
     treeView,
@@ -66,6 +69,14 @@ export const activate = (context: vscode.ExtensionContext) => {
     }),
     vscode.commands.registerCommand('work-checkpoints.openFileAtRevision', async (item: SnapshotFileTreeItem) => {
       await openFileAtRevision(item);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.viewAsTree', () => {
+      snapshotTreeProvider.toggleViewMode();
+      vscode.commands.executeCommand('setContext', 'workCheckpoints.treeViewMode', true);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.viewAsList', () => {
+      snapshotTreeProvider.toggleViewMode();
+      vscode.commands.executeCommand('setContext', 'workCheckpoints.treeViewMode', false);
     })
   );
 

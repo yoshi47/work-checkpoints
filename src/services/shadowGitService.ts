@@ -187,9 +187,10 @@ export class ShadowGitService {
     return fileList.trim().split('\n').filter(Boolean);
   };
 
-  getSnapshotDiffFilesFromHead = async (snapshotId: string, headHash: string): Promise<string[]> => {
+  getSnapshotDiffFiles = async (snapshotId: string): Promise<string[]> => {
     const git = this.getGit();
-    const diff = await git.diffSummary([`${headHash}..${snapshotId}`]);
+    // スナップショットと現在の作業ディレクトリを比較
+    const diff = await git.diffSummary([snapshotId]);
     return diff.files.map((f) => f.file);
   };
 
