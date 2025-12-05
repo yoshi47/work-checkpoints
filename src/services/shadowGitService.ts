@@ -131,16 +131,17 @@ export class ShadowGitService {
     // git add . で直接ワークスペースをステージング（ファイルコピー不要！）
     await git.add('.');
 
+    // ステージングエリアに変更があるか確認
+    const status = await git.status();
+    if (status.staged.length === 0) {
+      throw new Error('No changes to save');
+    }
+
     // Create commit with metadata
     const timestamp = new Date();
     const description = this.formatDescription(branchName, timestamp, messageFormat, dateFormat);
 
-    try {
-      await git.commit(description, { '--allow-empty': null });
-    } catch {
-      // If nothing to commit, create an empty commit
-      await git.commit(description, { '--allow-empty': null });
-    }
+    await git.commit(description);
 
     const log = await git.log({ maxCount: 1 });
     const latestCommit = log.latest;
