@@ -5,6 +5,7 @@
   "version": "0.1.0",
   "publisher": "kururu6966",
   "license": "MIT",
+  "icon": "resources/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/kururu6966/work-checkpoints"
