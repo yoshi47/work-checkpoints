@@ -4,7 +4,7 @@ import * as path from 'path';
 import { saveSnapshot } from './commands/saveSnapshot';
 import { restoreSnapshot } from './commands/restoreSnapshot';
 import { deleteSnapshots } from './commands/deleteSnapshots';
-import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem } from './views/snapshotTreeProvider';
+import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem, SnapshotFolderTreeItem } from './views/snapshotTreeProvider';
 import { SnapshotInputViewProvider } from './views/snapshotInputViewProvider';
 import { SnapshotContentProvider } from './providers/snapshotContentProvider';
 
@@ -83,6 +83,12 @@ export const activate = (context: vscode.ExtensionContext) => {
     }),
     vscode.commands.registerCommand('work-checkpoints.openFileAtRevision', async (item: SnapshotFileTreeItem) => {
       await openFileAtRevision(item);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.restoreFolderItem', async (item: SnapshotFolderTreeItem) => {
+      await restoreFolderItem(item);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.deleteFolderItem', async (item: SnapshotFolderTreeItem) => {
+      await deleteFolderItem(item);
     }),
     vscode.commands.registerCommand('work-checkpoints.viewAsTree', () => {
       snapshotTreeProvider.toggleViewMode();
@@ -343,6 +349,91 @@ const openFileAtRevision = async (item: SnapshotFileTreeItem): Promise<void> => 
   const snapshotUri = SnapshotContentProvider.createUri(item.snapshotId, item.filePath);
   const doc = await vscode.workspace.openTextDocument(snapshotUri);
   await vscode.window.showTextDocument(doc, { preview: true });
+};
+
+const restoreFolderItem = async (item: SnapshotFolderTreeItem): Promise<void> => {
+  const shadowGitService = snapshotTreeProvider.getShadowGitService();
+  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+
+  if (!shadowGitService || !workspaceService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const gitRoot = await workspaceService.getGitRoot();
+  if (!gitRoot) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const confirm = await vscode.window.showWarningMessage(
+    `Restore folder "${item.folderPath}" (${item.childPaths.length} files) from snapshot? This will overwrite current files.`,
+    { modal: true },
+    'Restore'
+  );
+
+  if (confirm !== 'Restore') {
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'Restoring folder...',
+      cancellable: false,
+    },
+    async () => {
+      const files = await shadowGitService.getSnapshotFiles(item.snapshotId);
+
+      for (const filePath of item.childPaths) {
+        const content = files.get(filePath);
+        if (content) {
+          const fullPath = path.join(gitRoot, filePath);
+          await fs.mkdir(path.dirname(fullPath), { recursive: true });
+          await fs.writeFile(fullPath, content);
+        }
+      }
+    }
+  );
+
+  vscode.window.showInformationMessage(`Folder restored: ${item.folderPath}`);
+};
+
+const deleteFolderItem = async (item: SnapshotFolderTreeItem): Promise<void> => {
+  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+
+  if (!workspaceService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const gitRoot = await workspaceService.getGitRoot();
+  if (!gitRoot) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const fullPath = path.join(gitRoot, item.folderPath);
+
+  try {
+    await fs.access(fullPath);
+  } catch {
+    vscode.window.showWarningMessage(`Folder does not exist: ${item.folderPath}`);
+    return;
+  }
+
+  const confirm = await vscode.window.showWarningMessage(
+    `Delete folder "${item.folderPath}" from workspace? This action cannot be undone.`,
+    { modal: true },
+    'Delete'
+  );
+
+  if (confirm !== 'Delete') {
+    return;
+  }
+
+  await fs.rm(fullPath, { recursive: true });
+  vscode.window.showInformationMessage(`Folder deleted: ${item.folderPath}`);
 };
 
 export const deactivate = () => {};

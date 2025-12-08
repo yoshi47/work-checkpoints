@@ -74,6 +74,16 @@
         "icon": "$(go-to-file)"
       },
       {
+        "command": "work-checkpoints.restoreFolderItem",
+        "title": "Restore Folder",
+        "icon": "$(history)"
+      },
+      {
+        "command": "work-checkpoints.deleteFolderItem",
+        "title": "Delete Folder",
+        "icon": "$(trash)"
+      },
+      {
         "command": "work-checkpoints.viewAsTree",
         "title": "View as Tree",
         "icon": "$(list-tree)"
@@ -188,6 +198,16 @@
           "command": "work-checkpoints.deleteFileItem",
           "when": "view == workCheckpointsView && viewItem == snapshotFile",
           "group": "inline@3"
+        },
+        {
+          "command": "work-checkpoints.restoreFolderItem",
+          "when": "view == workCheckpointsView && viewItem == snapshotFolder",
+          "group": "inline@1"
+        },
+        {
+          "command": "work-checkpoints.deleteFolderItem",
+          "when": "view == workCheckpointsView && viewItem == snapshotFolder",
+          "group": "inline@2"
         }
       ]
     }
