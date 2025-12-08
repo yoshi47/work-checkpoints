@@ -19,7 +19,14 @@ export class SnapshotInputViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [this._extensionUri],
     };
 
-    webviewView.webview.html = this._getHtmlForWebview();
+    this._updateWebview();
+
+    // Listen for configuration changes
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('work-checkpoints.showDeleteAllButton')) {
+        this._updateWebview();
+      }
+    });
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       if (data.type === 'saveSnapshot') {
@@ -28,6 +35,8 @@ export class SnapshotInputViewProvider implements vscode.WebviewViewProvider {
           data.description
         );
         this.clearInput();
+      } else if (data.type === 'deleteAll') {
+        await vscode.commands.executeCommand('work-checkpoints.deleteAll');
       }
     });
   }
@@ -38,7 +47,15 @@ export class SnapshotInputViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private _getHtmlForWebview(): string {
+  private _updateWebview(): void {
+    if (this._view) {
+      const config = vscode.workspace.getConfiguration('work-checkpoints');
+      const showDeleteAllButton = config.get<boolean>('showDeleteAllButton', true);
+      this._view.webview.html = this._getHtmlForWebview(showDeleteAllButton);
+    }
+  }
+
+  private _getHtmlForWebview(showDeleteAllButton: boolean = true): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -94,17 +111,26 @@ export class SnapshotInputViewProvider implements vscode.WebviewViewProvider {
     button:active {
       background: var(--vscode-button-background);
     }
+    .delete-btn {
+      background: var(--vscode-button-secondaryBackground);
+      color: var(--vscode-button-secondaryForeground);
+    }
+    .delete-btn:hover {
+      background: var(--vscode-button-secondaryHoverBackground);
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <input type="text" id="description" placeholder="Snapshot description (optional)">
     <button id="saveBtn">Save</button>
+    ${showDeleteAllButton ? '<button id="deleteAllBtn" class="delete-btn">Delete All</button>' : ''}
   </div>
   <script>
     const vscode = acquireVsCodeApi();
     const input = document.getElementById('description');
     const saveBtn = document.getElementById('saveBtn');
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
 
     const save = () => {
       vscode.postMessage({
@@ -114,6 +140,12 @@ export class SnapshotInputViewProvider implements vscode.WebviewViewProvider {
     };
 
     saveBtn.addEventListener('click', save);
+
+    if (deleteAllBtn) {
+      deleteAllBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'deleteAll' });
+      });
+    }
 
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {

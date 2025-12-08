@@ -123,6 +123,11 @@
           "type": "string",
           "default": "yyyy/MM/dd HH:mm:ss",
           "description": "Date format for ${date}. Tokens: yyyy, MM, dd, HH, mm, ss"
+        },
+        "work-checkpoints.showDeleteAllButton": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show 'Delete All' button in the Create Snapshot panel"
         }
       }
     },
