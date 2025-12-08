@@ -37,7 +37,6 @@ export const deleteSnapshots = async (): Promise<void> => {
 
   const items: SnapshotQuickPickItem[] = snapshots.map((snapshot) => ({
     label: snapshot.description,
-    detail: `ID: ${snapshot.id}`,
     snapshot,
   }));
 
