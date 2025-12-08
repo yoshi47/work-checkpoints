@@ -148,7 +148,7 @@ export class SnapshotInputViewProvider implements vscode.WebviewViewProvider {
     }
 
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !e.isComposing) {
         save();
       }
     });
