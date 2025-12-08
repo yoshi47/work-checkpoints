@@ -122,7 +122,8 @@ export class ShadowGitService {
   createSnapshot = async (
     branchName: string,
     messageFormat?: string,
-    dateFormat?: string
+    dateFormat?: string,
+    customDescription?: string
   ): Promise<SnapshotMetadata> => {
     await this.initializeIfNeeded();
 
@@ -139,7 +140,7 @@ export class ShadowGitService {
 
     // Create commit with metadata
     const timestamp = new Date();
-    const description = this.formatDescription(branchName, timestamp, messageFormat, dateFormat);
+    const description = customDescription || this.formatDescription(branchName, timestamp, messageFormat, dateFormat);
 
     await git.commit(description);
 

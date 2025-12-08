@@ -27,6 +27,10 @@
         "icon": "$(add)"
       },
       {
+        "command": "work-checkpoints.saveSnapshotWithDescription",
+        "title": "Work Checkpoints: Save Snapshot with Description"
+      },
+      {
         "command": "work-checkpoints.restoreSnapshot",
         "title": "Work Checkpoints: Restore Snapshot"
       },
@@ -96,6 +100,11 @@
     },
     "views": {
       "work-checkpoints": [
+        {
+          "type": "webview",
+          "id": "workCheckpointsInput",
+          "name": "Create Snapshot"
+        },
         {
           "id": "workCheckpointsView",
           "name": "Snapshots"

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { WorkspaceService } from '../services/workspaceService';
 import { ShadowGitService } from '../services/shadowGitService';
 
-export const saveSnapshot = async (): Promise<void> => {
+export const saveSnapshot = async (customDescription?: string): Promise<void> => {
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
     vscode.window.showErrorMessage('No workspace folder is open.');
@@ -38,7 +38,7 @@ export const saveSnapshot = async (): Promise<void> => {
       const dateFormat = config.get<string>('dateFormat');
 
       const shadowGitService = new ShadowGitService(remoteUrl, gitRoot);
-      const snapshot = await shadowGitService.createSnapshot(branchName, messageFormat, dateFormat);
+      const snapshot = await shadowGitService.createSnapshot(branchName, messageFormat, dateFormat, customDescription);
 
       vscode.window.showInformationMessage(`Snapshot saved: ${snapshot.description}`);
     }

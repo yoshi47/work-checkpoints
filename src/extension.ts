@@ -5,6 +5,7 @@ import { saveSnapshot } from './commands/saveSnapshot';
 import { restoreSnapshot } from './commands/restoreSnapshot';
 import { deleteSnapshots } from './commands/deleteSnapshots';
 import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem } from './views/snapshotTreeProvider';
+import { SnapshotInputViewProvider } from './views/snapshotInputViewProvider';
 import { SnapshotContentProvider } from './providers/snapshotContentProvider';
 
 let snapshotTreeProvider: SnapshotTreeProvider;
@@ -32,11 +33,24 @@ export const activate = (context: vscode.ExtensionContext) => {
   // Initialize context for tree view mode
   vscode.commands.executeCommand('setContext', 'workCheckpoints.treeViewMode', false);
 
+  // Register WebView provider for input
+  const snapshotInputViewProvider = new SnapshotInputViewProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      SnapshotInputViewProvider.viewType,
+      snapshotInputViewProvider
+    )
+  );
+
   // Register commands
   context.subscriptions.push(
     treeView,
     vscode.commands.registerCommand('work-checkpoints.saveSnapshot', async () => {
       await saveSnapshot();
+      snapshotTreeProvider.refresh();
+    }),
+    vscode.commands.registerCommand('work-checkpoints.saveSnapshotWithDescription', async (description?: string) => {
+      await saveSnapshot(description);
       snapshotTreeProvider.refresh();
     }),
     vscode.commands.registerCommand('work-checkpoints.restoreSnapshot', restoreSnapshot),
