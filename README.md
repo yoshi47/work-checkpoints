@@ -7,6 +7,7 @@ Save and restore work snapshots using a shadow Git repository. Perfect for exper
 - **Save Snapshots**: Capture your current work state at any time
 - **Restore Snapshots**: Revert to a previous snapshot with one click
 - **File-level Operations**: View diffs, restore, or delete individual files
+- **Folder Operations**: Restore or delete entire folders
 - **Rename Snapshots**: Give meaningful names to your checkpoints
 - **Activity Bar Integration**: Quick access from the sidebar
 - **Command Palette Support**: All commands available via `Cmd+Shift+P`
@@ -27,12 +28,9 @@ Save and restore work snapshots using a shadow Git repository. Perfect for exper
 
 Click on any file within a snapshot to see the diff between the snapshot version and your current file.
 
-### File Operations
+### File/Folder Operations
 
-Hover over a file in a snapshot to:
-- **Open at Revision**: View the file as it was in the snapshot
-- **Restore**: Restore just this file from the snapshot
-- **Delete**: Delete this file from your workspace
+Hover over a file or folder in a snapshot to restore or delete it.
 
 ### Rename a Snapshot
 
@@ -52,6 +50,7 @@ Right-click on a snapshot and select **Rename** to give it a meaningful name.
 |---------|---------|-------------|
 | `work-checkpoints.messageFormat` | `${branch} @ ${date}` | Snapshot message format. Variables: `${branch}`, `${date}` |
 | `work-checkpoints.dateFormat` | `yyyy/MM/dd HH:mm:ss` | Date format. Tokens: `yyyy`, `MM`, `dd`, `HH`, `mm`, `ss` |
+| `work-checkpoints.showDeleteAllButton` | `false` | Show "Delete All" button in snapshot input panel |
 
 ### Examples
 
