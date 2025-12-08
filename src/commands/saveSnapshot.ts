@@ -38,9 +38,17 @@ export const saveSnapshot = async (customDescription?: string): Promise<void> =>
       const dateFormat = config.get<string>('dateFormat');
 
       const shadowGitService = new ShadowGitService(remoteUrl, gitRoot);
-      const snapshot = await shadowGitService.createSnapshot(branchName, messageFormat, dateFormat, customDescription);
 
-      vscode.window.showInformationMessage(`Snapshot saved: ${snapshot.description}`);
+      try {
+        const snapshot = await shadowGitService.createSnapshot(branchName, messageFormat, dateFormat, customDescription);
+        vscode.window.showInformationMessage(`Snapshot saved: ${snapshot.description}`);
+      } catch (error) {
+        if (error instanceof Error && error.message === 'No changes to save') {
+          vscode.window.showWarningMessage('No change detected. Snapshot was not created.');
+        } else {
+          throw error;
+        }
+      }
     }
   );
 };
