@@ -142,7 +142,12 @@ export class ShadowGitService {
     const timestamp = new Date();
     const description = customDescription || this.formatDescription(branchName, timestamp, messageFormat, dateFormat);
 
-    await git.commit(description);
+    // Always include branch name as trailer for reliable extraction later
+    const commitMessage = customDescription
+      ? `${customDescription}\n\nBranch: ${branchName}`
+      : description;
+
+    await git.commit(commitMessage);
 
     const log = await git.log({ maxCount: 1 });
     const latestCommit = log.latest;
@@ -270,22 +275,36 @@ export class ShadowGitService {
   private parseCommitMetadata = (commit: {
     hash: string;
     message: string;
+    body: string;
     date: string;
   }): SnapshotMetadata => {
     const message = commit.message;
-    const match = message.match(/^(.+) @ (.+)$/);
+    const body = commit.body || '';
 
-    if (match) {
-      const parsedDate = new Date(match[2]);
+    // Try to extract branch from body trailer (new format with custom description)
+    const trailerMatch = body.match(/^Branch: (.+)$/m);
+    if (trailerMatch) {
       return {
         id: commit.hash.substring(0, 7),
-        branchName: match[1],
+        branchName: trailerMatch[1],
+        timestamp: new Date(commit.date),
+        description: message,
+      };
+    }
+
+    // Fallback: try old format "${branch} @ ${date}"
+    const oldFormatMatch = message.match(/^(.+) @ (.+)$/);
+    if (oldFormatMatch) {
+      const parsedDate = new Date(oldFormatMatch[2]);
+      return {
+        id: commit.hash.substring(0, 7),
+        branchName: oldFormatMatch[1],
         timestamp: isNaN(parsedDate.getTime()) ? new Date(commit.date) : parsedDate,
         description: message,
       };
     }
 
-    // Fallback for commits with different format
+    // Final fallback for unknown format
     return {
       id: commit.hash.substring(0, 7),
       branchName: 'unknown',

@@ -121,6 +121,36 @@ suite('ShadowGitService', () => {
       const snapshots = await shadowGitService.listSnapshots();
       assert.strictEqual(snapshots.length, 2);
     });
+
+    test('should preserve branch name when using custom description', async () => {
+      const customDescription = 'Fix critical bug';
+      const snapshot = await shadowGitService.createSnapshot(
+        'feature/my-branch',
+        undefined,
+        undefined,
+        customDescription
+      );
+
+      assert.strictEqual(snapshot.branchName, 'feature/my-branch');
+      assert.strictEqual(snapshot.description, customDescription);
+
+      // Verify branch name is preserved when listing snapshots
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots.length, 1);
+      assert.strictEqual(snapshots[0].branchName, 'feature/my-branch');
+      assert.strictEqual(snapshots[0].description, customDescription);
+    });
+
+    test('should handle custom description without branch trailer in display', async () => {
+      const customDescription = 'Add new feature';
+      await shadowGitService.createSnapshot('develop', undefined, undefined, customDescription);
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      // Description should not contain the Branch: trailer
+      assert.strictEqual(snapshots[0].description, customDescription);
+      assert.ok(!snapshots[0].description.includes('Branch:'));
+    });
   });
 
   suite('listSnapshots', () => {
