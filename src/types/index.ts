@@ -10,3 +10,12 @@ export interface ShadowRepoConfig {
   repoIdentifier: string;
   shadowRepoPath: string;
 }
+
+export type DiffFileStatus = 'added' | 'modified' | 'deleted';
+
+export interface DiffFileInfo {
+  file: string;
+  status: DiffFileStatus;
+  insertions: number;
+  deletions: number;
+}

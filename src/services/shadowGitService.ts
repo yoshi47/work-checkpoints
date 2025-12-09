@@ -1,7 +1,7 @@
 import simpleGit, { SimpleGit } from 'simple-git';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { SnapshotMetadata, ShadowRepoConfig } from '../types';
+import { SnapshotMetadata, ShadowRepoConfig, DiffFileInfo, DiffFileStatus } from '../types';
 import { SHADOW_REPO_BASE_PATH } from '../utils/constants';
 import { generateRepoIdentifier } from '../utils/hashUtils';
 import { writeExcludePatterns } from '../utils/excludes';
@@ -194,14 +194,40 @@ export class ShadowGitService {
     return fileList.trim().split('\n').filter(Boolean);
   };
 
-  getSnapshotDiffFiles = async (snapshotId: string): Promise<string[]> => {
+  getSnapshotDiffFiles = async (snapshotId: string): Promise<DiffFileInfo[]> => {
     // core.worktree が正しいワークスペースを指すようにする
     await this.initializeIfNeeded();
 
     const git = this.getGit();
-    // スナップショットと現在の作業ディレクトリを比較
-    const diffOutput = await git.diff(['--name-only', snapshotId]);
-    return diffOutput.trim().split('\n').filter(Boolean);
+
+    // ファイル状態を取得 (A=追加, M=変更, D=削除)
+    const nameStatusOutput = await git.diff(['--name-status', snapshotId]);
+    const statusMap = new Map<string, DiffFileStatus>();
+    for (const line of nameStatusOutput.trim().split('\n').filter(Boolean)) {
+      const [status, file] = line.split('\t');
+      if (status && file) {
+        const diffStatus: DiffFileStatus =
+          status === 'A' ? 'added' : status === 'D' ? 'deleted' : 'modified';
+        statusMap.set(file, diffStatus);
+      }
+    }
+
+    // 追加/削除行数を取得
+    const numstatOutput = await git.diff(['--numstat', snapshotId]);
+    const result: DiffFileInfo[] = [];
+    for (const line of numstatOutput.trim().split('\n').filter(Boolean)) {
+      const [insertions, deletions, file] = line.split('\t');
+      if (file) {
+        result.push({
+          file,
+          status: statusMap.get(file) ?? 'modified',
+          insertions: insertions === '-' ? 0 : parseInt(insertions, 10) || 0,
+          deletions: deletions === '-' ? 0 : parseInt(deletions, 10) || 0,
+        });
+      }
+    }
+
+    return result;
   };
 
   getSnapshotFiles = async (snapshotId: string): Promise<Map<string, Buffer>> => {

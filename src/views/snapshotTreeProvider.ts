@@ -3,7 +3,7 @@ import * as path from 'path';
 import { WorkspaceService } from '../services/workspaceService';
 import { ShadowGitService } from '../services/shadowGitService';
 import { SnapshotContentProvider } from '../providers/snapshotContentProvider';
-import { SnapshotMetadata } from '../types';
+import { SnapshotMetadata, DiffFileInfo, DiffFileStatus } from '../types';
 
 export class SnapshotTreeItem extends vscode.TreeItem {
   constructor(
@@ -18,19 +18,60 @@ export class SnapshotTreeItem extends vscode.TreeItem {
   }
 }
 
+const formatDiffStats = (insertions: number, deletions: number): string => {
+  const parts: string[] = [];
+  if (insertions > 0) {
+    parts.push(`+${insertions}`);
+  }
+  if (deletions > 0) {
+    parts.push(`-${deletions}`);
+  }
+  return parts.join(' ');
+};
+
+const getStatusColor = (status: DiffFileStatus): vscode.ThemeColor => {
+  switch (status) {
+    case 'added':
+      return new vscode.ThemeColor('gitDecoration.addedResourceForeground');
+    case 'deleted':
+      return new vscode.ThemeColor('gitDecoration.deletedResourceForeground');
+    case 'modified':
+    default:
+      return new vscode.ThemeColor('gitDecoration.modifiedResourceForeground');
+  }
+};
+
 export class SnapshotFileTreeItem extends vscode.TreeItem {
   constructor(
     public readonly filePath: string,
     public readonly snapshotId: string,
-    showPath: boolean = true
+    showPath: boolean = true,
+    public readonly diffInfo?: DiffFileInfo
   ) {
     super(path.basename(filePath), vscode.TreeItemCollapsibleState.None);
 
-    this.tooltip = filePath;
-    this.description = showPath && path.dirname(filePath) !== '.' ? path.dirname(filePath) : '';
+    const dirPath = path.dirname(filePath) !== '.' ? path.dirname(filePath) : '';
+    const stats = diffInfo ? formatDiffStats(diffInfo.insertions, diffInfo.deletions) : '';
+
+    // description: パス + 変更行数
+    const descParts: string[] = [];
+    if (showPath && dirPath) {
+      descParts.push(dirPath);
+    }
+    if (stats) {
+      descParts.push(stats);
+    }
+    this.description = descParts.join('  ');
+
+    this.tooltip = `${filePath}${stats ? `\n${stats}` : ''}`;
     this.contextValue = 'snapshotFile';
 
-    this.iconPath = vscode.ThemeIcon.File;
+    // ステータスに応じた色付きアイコン
+    if (diffInfo) {
+      this.iconPath = new vscode.ThemeIcon('file', getStatusColor(diffInfo.status));
+    } else {
+      this.iconPath = vscode.ThemeIcon.File;
+    }
 
     this.command = {
       command: 'work-checkpoints.showFileDiff',
@@ -44,7 +85,8 @@ export class SnapshotFolderTreeItem extends vscode.TreeItem {
   constructor(
     public readonly folderPath: string,
     public readonly snapshotId: string,
-    public readonly childPaths: string[]
+    public readonly childPaths: string[],
+    public readonly childDiffFiles: DiffFileInfo[]
   ) {
     super(path.basename(folderPath), vscode.TreeItemCollapsibleState.Expanded);
     this.tooltip = folderPath;
@@ -56,36 +98,36 @@ export class SnapshotFolderTreeItem extends vscode.TreeItem {
 type TreeItem = SnapshotTreeItem | SnapshotFolderTreeItem | SnapshotFileTreeItem;
 
 const buildTreeItems = (
-  filePaths: string[],
+  diffFiles: DiffFileInfo[],
   snapshotId: string,
   parentPath: string = ''
 ): TreeItem[] => {
   const items: TreeItem[] = [];
-  const folders = new Map<string, string[]>();
-  const files: string[] = [];
+  const folders = new Map<string, DiffFileInfo[]>();
+  const files: DiffFileInfo[] = [];
 
-  for (const filePath of filePaths) {
-    const relativePath = parentPath ? filePath.slice(parentPath.length + 1) : filePath;
+  for (const diffFile of diffFiles) {
+    const relativePath = parentPath ? diffFile.file.slice(parentPath.length + 1) : diffFile.file;
     const firstSlash = relativePath.indexOf('/');
 
     if (firstSlash === -1) {
-      files.push(filePath);
+      files.push(diffFile);
     } else {
       const folderName = relativePath.slice(0, firstSlash);
       const folderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
       if (!folders.has(folderPath)) {
         folders.set(folderPath, []);
       }
-      folders.get(folderPath)!.push(filePath);
+      folders.get(folderPath)!.push(diffFile);
     }
   }
 
-  for (const [folderPath, childPaths] of folders) {
-    items.push(new SnapshotFolderTreeItem(folderPath, snapshotId, childPaths));
+  for (const [folderPath, childFiles] of folders) {
+    items.push(new SnapshotFolderTreeItem(folderPath, snapshotId, childFiles.map((f) => f.file), childFiles));
   }
 
-  for (const filePath of files) {
-    items.push(new SnapshotFileTreeItem(filePath, snapshotId, false));
+  for (const diffFile of files) {
+    items.push(new SnapshotFileTreeItem(diffFile.file, snapshotId, false, diffFile));
   }
 
   return items;
@@ -156,18 +198,18 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     try {
       // スナップショットの子要素
       if (element instanceof SnapshotTreeItem) {
-        const fileNames = await this.shadowGitService.getSnapshotDiffFiles(element.snapshot.id);
+        const diffFiles = await this.shadowGitService.getSnapshotDiffFiles(element.snapshot.id);
 
         if (this.treeViewMode) {
-          return buildTreeItems(fileNames, element.snapshot.id);
+          return buildTreeItems(diffFiles, element.snapshot.id);
         } else {
-          return fileNames.map((filePath) => new SnapshotFileTreeItem(filePath, element.snapshot.id, true));
+          return diffFiles.map((diffFile) => new SnapshotFileTreeItem(diffFile.file, element.snapshot.id, true, diffFile));
         }
       }
 
       // フォルダの子要素（ツリーモード時のみ）
       if (element instanceof SnapshotFolderTreeItem) {
-        return buildTreeItems(element.childPaths, element.snapshotId, element.folderPath);
+        return buildTreeItems(element.childDiffFiles, element.snapshotId, element.folderPath);
       }
 
       // スナップショット一覧を返す（ルート）
