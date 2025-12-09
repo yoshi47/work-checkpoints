@@ -1,6 +1,7 @@
 import simpleGit, { SimpleGit } from 'simple-git';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { SnapshotMetadata, ShadowRepoConfig, DiffFileInfo, DiffFileStatus } from '../types';
 import { SHADOW_REPO_BASE_PATH } from '../utils/constants';
 import { generateRepoIdentifier } from '../utils/hashUtils';
@@ -103,6 +104,11 @@ export class ShadowGitService {
         // core.worktree が設定されていない場合は設定する
         await git.addConfig('core.worktree', this.workspacePath);
       }
+
+      // 除外パターンを更新（設定変更を反映）
+      const config = vscode.workspace.getConfiguration('work-checkpoints');
+      const additionalPatterns = config.get<string[]>('ignorePatterns', []);
+      await writeExcludePatterns(this.config.shadowRepoPath, additionalPatterns);
     } catch {
       // Shadow repo が存在しない場合は新規作成
       await fs.mkdir(this.config.shadowRepoPath, { recursive: true });
@@ -115,7 +121,9 @@ export class ShadowGitService {
       await git.addConfig('user.name', 'Work Checkpoints');
 
       // 除外パターンを設定
-      await writeExcludePatterns(this.config.shadowRepoPath);
+      const config = vscode.workspace.getConfiguration('work-checkpoints');
+      const additionalPatterns = config.get<string[]>('ignorePatterns', []);
+      await writeExcludePatterns(this.config.shadowRepoPath, additionalPatterns);
     }
   };
 

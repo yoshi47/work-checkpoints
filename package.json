@@ -147,6 +147,14 @@
           "type": "boolean",
           "default": true,
           "description": "Show 'Delete All' button in the Create Snapshot panel"
+        },
+        "work-checkpoints.ignorePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional patterns to ignore when creating snapshots (gitignore format)"
         }
       }
     },
