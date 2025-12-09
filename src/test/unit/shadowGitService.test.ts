@@ -132,7 +132,13 @@ suite('ShadowGitService', () => {
 
     test('should return snapshots in reverse chronological order', async () => {
       await shadowGitService.createSnapshot('branch1');
+
+      // Modify file to create a new snapshot
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
       await shadowGitService.createSnapshot('branch2');
+
+      // Modify file again
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
       await shadowGitService.createSnapshot('branch3');
 
       const snapshots = await shadowGitService.listSnapshots();
@@ -175,7 +181,13 @@ suite('ShadowGitService', () => {
   suite('deleteSnapshot', () => {
     test('should remove snapshot from list after deletion', async () => {
       const snapshot1 = await shadowGitService.createSnapshot('branch1');
+
+      // Modify file for second snapshot
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
       const snapshot2 = await shadowGitService.createSnapshot('branch2');
+
+      // Modify file for third snapshot
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
       const snapshot3 = await shadowGitService.createSnapshot('branch3');
 
       // Delete the middle snapshot
@@ -191,7 +203,13 @@ suite('ShadowGitService', () => {
 
     test('should be able to delete multiple snapshots', async () => {
       const snapshot1 = await shadowGitService.createSnapshot('branch1');
+
+      // Modify file for second snapshot
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
       const snapshot2 = await shadowGitService.createSnapshot('branch2');
+
+      // Modify file for third snapshot
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
       const snapshot3 = await shadowGitService.createSnapshot('branch3');
 
       await shadowGitService.deleteSnapshot(snapshot1.id);
