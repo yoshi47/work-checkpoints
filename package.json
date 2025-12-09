@@ -14,7 +14,15 @@
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Other"
+    "SCM Providers"
+  ],
+  "keywords": [
+    "checkpoint",
+    "snapshot",
+    "backup",
+    "git",
+    "history",
+    "undo"
   ],
   "activationEvents": [
     "workspaceContains:.git"
