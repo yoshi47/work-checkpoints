@@ -4,6 +4,11 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.2.2] - 2025-12-09
+
+### Changed
+- Expanded ignore patterns for development and CI folders in `.vscodeignore`
+
 ## [0.2.1] - 2025-12-09
 
 ### Added

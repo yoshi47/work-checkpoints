@@ -2,7 +2,7 @@
   "name": "work-checkpoints",
   "displayName": "Work Checkpoints",
   "description": "Save and restore work snapshots using a shadow Git repository",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "kururu6966",
   "license": "MIT",
   "icon": "resources/icon.png",
