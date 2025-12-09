@@ -195,10 +195,13 @@ export class ShadowGitService {
   };
 
   getSnapshotDiffFiles = async (snapshotId: string): Promise<string[]> => {
+    // core.worktree が正しいワークスペースを指すようにする
+    await this.initializeIfNeeded();
+
     const git = this.getGit();
     // スナップショットと現在の作業ディレクトリを比較
-    const diff = await git.diffSummary([snapshotId]);
-    return diff.files.map((f) => f.file);
+    const diffOutput = await git.diff(['--name-only', snapshotId]);
+    return diffOutput.trim().split('\n').filter(Boolean);
   };
 
   getSnapshotFiles = async (snapshotId: string): Promise<Map<string, Buffer>> => {
