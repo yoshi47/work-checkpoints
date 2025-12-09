@@ -4,6 +4,11 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.2.3] - 2025-12-09
+
+### Fixed
+- Ensure branch name extraction for custom snapshot descriptions
+
 ## [0.2.2] - 2025-12-09
 
 ### Changed
