@@ -8,7 +8,7 @@
       "name": "work-checkpoints",
       "source": "./claude-plugin",
       "description": "Automatically save work checkpoints when sending messages",
-      "version": "1.0.0"
+      "version": "1.0.1"
     }
   ]
 }

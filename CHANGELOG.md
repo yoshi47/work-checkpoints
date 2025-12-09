@@ -13,6 +13,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ### Changed
 - Updated README with Claude Code plugin installation instructions
 
+### Fixed
+- Claude Code plugin: Fixed invalid manifest paths (hooks/commands must start with `./`)
+
 ## [0.1.0] - 2025-12-04
 
 ### Added
