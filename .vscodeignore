@@ -12,3 +12,5 @@ vsc-extension-quickstart.md
 **/.vscode-test.*
 pnpm-lock.yaml
 node_modules/**
+claude-plugin/**
+.claude-plugin/**

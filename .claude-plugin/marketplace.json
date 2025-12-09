@@ -1,0 +1,14 @@
+{
+  "name": "work-checkpoints-plugin",
+  "owner": {
+    "name": "kururu6966"
+  },
+  "plugins": [
+    {
+      "name": "work-checkpoints",
+      "source": "./claude-plugin",
+      "description": "Automatically save work checkpoints when sending messages",
+      "version": "1.0.0"
+    }
+  ]
+}

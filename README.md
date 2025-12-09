@@ -83,15 +83,25 @@ Work Checkpoints creates a separate "shadow" Git repository to store your snapsh
 
 Use the same checkpoint functionality in Claude Code. Automatically creates a checkpoint every time you send a message.
 
-**Install:**
-```
-/plugin install work-checkpoints@kururu6966
+### Installation
+
+```bash
+# Add marketplace
+/plugin marketplace add kururu6966/work-checkpoints
+
+# Install plugin
+/plugin install work-checkpoints@work-checkpoints-plugin
 ```
 
-**Features:**
-- Auto-save on `UserPromptSubmit` hook
+### Features
+
+- **Auto-save**: Creates a checkpoint each time you send a prompt
+- **Checkpoint restore**: Ability to revert to previous checkpoints
 - Shares the same shadow repository with the VSCode extension
-- Compatible with checkpoints created from VSCode
+
+### Commands
+
+- `/work-checkpoints:restore-checkpoint` - Restore a checkpoint
 
 ## Requirements
 
