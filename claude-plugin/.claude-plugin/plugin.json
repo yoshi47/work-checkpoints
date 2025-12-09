@@ -5,6 +5,6 @@
   "author": {
     "name": "kururu6966"
   },
-  "hooks": "../hooks/hooks.json",
-  "commands": "../commands"
+  "hooks": "./../hooks/hooks.json",
+  "commands": "./../commands/restore-checkpoint.md"
 }
