@@ -4,6 +4,15 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.2.1] - 2025-12-09
+
+### Added
+- SCM category and keywords for better discoverability in VS Code marketplace
+- File change tracking when creating snapshots
+
+### Fixed
+- Claude Code plugin: Fixed invalid manifest paths (hooks/commands must start with `./`)
+
 ## [0.2.0] - 2025-12-09
 
 ### Added
