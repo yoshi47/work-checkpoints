@@ -4,6 +4,16 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.3.0] - 2025-12-09
+
+### Added
+- Configurable ignore patterns for snapshot creation (`work-checkpoints.ignorePatterns` setting)
+- Branch name in snapshot description
+
+### Changed
+- Enhanced snapshot diff display with detailed file change information
+- Improved snapshot diff retrieval method
+
 ## [0.2.3] - 2025-12-09
 
 ### Fixed

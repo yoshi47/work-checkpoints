@@ -50,7 +50,8 @@ Right-click on a snapshot and select **Rename** to give it a meaningful name.
 |---------|---------|-------------|
 | `work-checkpoints.messageFormat` | `${branch} @ ${date}` | Snapshot message format. Variables: `${branch}`, `${date}` |
 | `work-checkpoints.dateFormat` | `yyyy/MM/dd HH:mm:ss` | Date format. Tokens: `yyyy`, `MM`, `dd`, `HH`, `mm`, `ss` |
-| `work-checkpoints.showDeleteAllButton` | `false` | Show "Delete All" button in snapshot input panel |
+| `work-checkpoints.showDeleteAllButton` | `true` | Show "Delete All" button in snapshot input panel |
+| `work-checkpoints.ignorePatterns` | `[]` | Additional patterns to ignore when creating snapshots (gitignore format) |
 
 ### Examples
 
