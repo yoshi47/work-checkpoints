@@ -178,6 +178,34 @@ suite('ShadowGitService', () => {
       assert.strictEqual(snapshots[1].branchName, 'branch2');
       assert.strictEqual(snapshots[2].branchName, 'branch1');
     });
+
+    test('should strip [Claude] prefix from branch name', async () => {
+      await shadowGitService.createSnapshot('[Claude] main');
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      assert.strictEqual(snapshots.length, 1);
+      assert.strictEqual(snapshots[0].branchName, 'main');
+    });
+
+    test('should strip [Claude] prefix from branch name with custom description', async () => {
+      await shadowGitService.createSnapshot('[Claude] feature/test', undefined, undefined, 'Custom description');
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      assert.strictEqual(snapshots.length, 1);
+      assert.strictEqual(snapshots[0].branchName, 'feature/test');
+      assert.strictEqual(snapshots[0].description, 'Custom description');
+    });
+
+    test('should not modify branch name without [Claude] prefix', async () => {
+      await shadowGitService.createSnapshot('feature/normal-branch');
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      assert.strictEqual(snapshots.length, 1);
+      assert.strictEqual(snapshots[0].branchName, 'feature/normal-branch');
+    });
   });
 
   suite('getSnapshotFiles', () => {

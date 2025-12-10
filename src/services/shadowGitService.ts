@@ -321,9 +321,10 @@ export class ShadowGitService {
     // Try to extract branch from body trailer (new format with custom description)
     const trailerMatch = body.match(/^Branch: (.+)$/m);
     if (trailerMatch) {
+      const branchName = trailerMatch[1].replace(/^\[Claude\]\s*/, '');
       return {
         id: commit.hash.substring(0, 7),
-        branchName: trailerMatch[1],
+        branchName,
         timestamp: new Date(commit.date),
         description: message,
       };
@@ -332,10 +333,11 @@ export class ShadowGitService {
     // Fallback: try old format "${branch} @ ${date}"
     const oldFormatMatch = message.match(/^(.+) @ (.+)$/);
     if (oldFormatMatch) {
+      const branchName = oldFormatMatch[1].replace(/^\[Claude\]\s*/, '');
       const parsedDate = new Date(oldFormatMatch[2]);
       return {
         id: commit.hash.substring(0, 7),
-        branchName: oldFormatMatch[1],
+        branchName,
         timestamp: isNaN(parsedDate.getTime()) ? new Date(commit.date) : parsedDate,
         description: message,
       };
