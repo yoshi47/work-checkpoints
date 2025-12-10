@@ -106,6 +106,11 @@
         "command": "work-checkpoints.deleteAll",
         "title": "Delete All Snapshots",
         "icon": "$(trash)"
+      },
+      {
+        "command": "work-checkpoints.openSettings",
+        "title": "Open Settings",
+        "icon": "$(gear)"
       }
     ],
     "viewsContainers": {
@@ -184,6 +189,11 @@
           "command": "work-checkpoints.deleteAll",
           "when": "view == workCheckpointsView",
           "group": "2_delete"
+        },
+        {
+          "command": "work-checkpoints.openSettings",
+          "when": "view == workCheckpointsView",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [

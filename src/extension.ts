@@ -101,6 +101,9 @@ export const activate = (context: vscode.ExtensionContext) => {
     vscode.commands.registerCommand('work-checkpoints.deleteAll', async () => {
       await deleteAllSnapshots();
       snapshotTreeProvider.refresh();
+    }),
+    vscode.commands.registerCommand('work-checkpoints.openSettings', () => {
+      vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kururu6966.work-checkpoints');
     })
   );
 
