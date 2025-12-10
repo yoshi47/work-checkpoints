@@ -4,6 +4,15 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.4.0] - 2025-12-10
+
+### Added
+- Open Settings command to quickly access extension settings
+- Full description display for snapshots (expandable)
+
+### Fixed
+- Removed `[Claude]` prefix from branch names in snapshot descriptions
+
 ## [0.3.0] - 2025-12-09
 
 ### Added
