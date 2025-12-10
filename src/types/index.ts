@@ -3,6 +3,7 @@ export interface SnapshotMetadata {
   branchName: string;
   timestamp: Date;
   description: string;
+  fullMessage?: string;
 }
 
 export interface ShadowRepoConfig {

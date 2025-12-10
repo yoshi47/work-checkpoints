@@ -3,9 +3,9 @@
 # stdinからJSONを読み取り、プロンプトを抽出
 INPUT=$(cat)
 if command -v jq &> /dev/null; then
-  USER_PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null | head -c 100)
+  USER_PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null | head -c 500)
 else
-  USER_PROMPT=$(echo "$INPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('prompt', '')[:100])" 2>/dev/null)
+  USER_PROMPT=$(echo "$INPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('prompt', '')[:500])" 2>/dev/null)
 fi
 
 # シャドウリポジトリのパスを計算

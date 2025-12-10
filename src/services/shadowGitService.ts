@@ -317,6 +317,7 @@ export class ShadowGitService {
   }): SnapshotMetadata => {
     const message = commit.message;
     const body = commit.body || '';
+    const fullMessage = body ? `${message}\n${body}` : message;
 
     // Try to extract branch from body trailer (new format with custom description)
     const trailerMatch = body.match(/^Branch: (.+)$/m);
@@ -327,6 +328,7 @@ export class ShadowGitService {
         branchName,
         timestamp: new Date(commit.date),
         description: message,
+        fullMessage,
       };
     }
 
@@ -340,6 +342,7 @@ export class ShadowGitService {
         branchName,
         timestamp: isNaN(parsedDate.getTime()) ? new Date(commit.date) : parsedDate,
         description: message,
+        fullMessage,
       };
     }
 
@@ -349,6 +352,7 @@ export class ShadowGitService {
       branchName: 'unknown',
       timestamp: new Date(commit.date),
       description: message,
+      fullMessage,
     };
   };
 }
