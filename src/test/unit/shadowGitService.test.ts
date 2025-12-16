@@ -288,4 +288,38 @@ suite('ShadowGitService', () => {
       assert.strictEqual(snapshotFiles.get('file1.txt')?.toString(), 'content1');
     });
   });
+
+  suite('restoreSnapshot', () => {
+    test('should restore workspace files to snapshot state', async () => {
+      // スナップショット作成
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      // ファイルを変更
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified content');
+
+      // 復元
+      await shadowGitService.restoreSnapshot(snapshot.id);
+
+      // 元の内容に戻っていることを確認
+      const content = await fs.readFile(path.join(workspaceDir, 'file1.txt'), 'utf-8');
+      assert.strictEqual(content, 'content1');
+    });
+
+    test('should remove untracked files when restoring', async () => {
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      // 新しいファイルを追加
+      await fs.writeFile(path.join(workspaceDir, 'newfile.txt'), 'new content');
+
+      // 復元
+      await shadowGitService.restoreSnapshot(snapshot.id);
+
+      // 未追跡ファイルが削除されていることを確認
+      const exists = await fs
+        .access(path.join(workspaceDir, 'newfile.txt'))
+        .then(() => true)
+        .catch(() => false);
+      assert.strictEqual(exists, false);
+    });
+  });
 });

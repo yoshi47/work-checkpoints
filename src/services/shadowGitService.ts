@@ -273,7 +273,7 @@ export class ShadowGitService {
     const git = this.getGit();
 
     // 未追跡ファイルを削除し、指定コミットに復元
-    await git.clean(['-f', '-d']);
+    await git.clean('f', ['-d']);
     await git.reset(['--hard', snapshotId]);
   };
 
