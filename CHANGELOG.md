@@ -4,6 +4,14 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.4.1] - 2025-12-16
+
+### Fixed
+- Fixed `git clean` command arguments to match library's expected format
+
+### Changed
+- Added comprehensive tests for snapshot restore functionality
+
 ## [0.4.0] - 2025-12-10
 
 ### Added
