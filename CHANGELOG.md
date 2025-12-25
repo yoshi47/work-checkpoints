@@ -4,6 +4,16 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.5.0] - 2025-12-25
+
+### Added
+- Branch grouping display feature to organize snapshots by branch
+- Toggle visibility for Claude-created snapshots
+- Individual delete functionality for Claude-created snapshots (renamed snapshots are protected)
+
+### Fixed
+- Fixed icon assignments for view and grouping commands (tree/list view and group/flat list icons were swapped)
+
 ## [0.4.1] - 2025-12-16
 
 ### Fixed

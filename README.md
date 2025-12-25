@@ -9,6 +9,8 @@ Save and restore work snapshots using a shadow Git repository. Perfect for exper
 - **File-level Operations**: View diffs, restore, or delete individual files
 - **Folder Operations**: Restore or delete entire folders
 - **Rename Snapshots**: Give meaningful names to your checkpoints
+- **Branch Grouping**: Organize snapshots by branch for better management
+- **Claude Snapshot Management**: Toggle visibility and delete Claude-created snapshots individually
 - **Activity Bar Integration**: Quick access from the sidebar
 - **Command Palette Support**: All commands available via `Cmd+Shift+P`
 
@@ -36,6 +38,15 @@ Hover over a file or folder in a snapshot to restore or delete it.
 
 Right-click on a snapshot and select **Rename** to give it a meaningful name.
 
+### Organize by Branch
+
+Use the **Group by Branch** command to organize snapshots by branch. Switch back to flat list view with **Flat List** command.
+
+### Manage Claude Snapshots
+
+- Use **Show/Hide Claude Snapshots** to toggle visibility of Claude-created snapshots
+- Use **Delete Claude Snapshots** to remove all Claude-created snapshots (renamed snapshots are protected)
+
 ## Commands
 
 | Command | Description |
@@ -43,6 +54,11 @@ Right-click on a snapshot and select **Rename** to give it a meaningful name.
 | `Work Checkpoints: Save Snapshot` | Save current work state |
 | `Work Checkpoints: Restore Snapshot` | Restore from a snapshot |
 | `Work Checkpoints: Delete Snapshots` | Delete one or more snapshots |
+| `Work Checkpoints: Group by Branch` | Organize snapshots by branch |
+| `Work Checkpoints: Flat List` | Display snapshots in a flat list |
+| `Work Checkpoints: Show Claude Snapshots` | Show Claude-created snapshots |
+| `Work Checkpoints: Hide Claude Snapshots` | Hide Claude-created snapshots |
+| `Work Checkpoints: Delete Claude Snapshots` | Delete all Claude-created snapshots |
 
 ## Settings
 
