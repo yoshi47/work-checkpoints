@@ -94,33 +94,33 @@
       },
       {
         "command": "work-checkpoints.viewAsTree",
-        "title": "View as Tree",
+        "title": "View as List",
         "icon": "$(list-tree)"
       },
       {
         "command": "work-checkpoints.viewAsList",
-        "title": "View as List",
+        "title": "View as Tree",
         "icon": "$(list-flat)"
       },
       {
         "command": "work-checkpoints.groupByBranch",
         "title": "Group by Branch",
-        "icon": "$(git-branch)"
+        "icon": "$(list-unordered)"
       },
       {
         "command": "work-checkpoints.flatList",
         "title": "Flat List",
-        "icon": "$(list-unordered)"
+        "icon": "$(git-branch)"
       },
       {
         "command": "work-checkpoints.showClaudeSnapshots",
         "title": "Show Claude Snapshots",
-        "icon": "$(eye)"
+        "icon": "$(eye-closed)"
       },
       {
         "command": "work-checkpoints.hideClaudeSnapshots",
         "title": "Hide Claude Snapshots",
-        "icon": "$(eye-closed)"
+        "icon": "$(eye)"
       },
       {
         "command": "work-checkpoints.deleteAll",
