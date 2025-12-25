@@ -5,6 +5,23 @@ import { ShadowGitService } from '../services/shadowGitService';
 import { SnapshotContentProvider } from '../providers/snapshotContentProvider';
 import { SnapshotMetadata, DiffFileInfo, DiffFileStatus } from '../types';
 
+export class BranchTreeItem extends vscode.TreeItem {
+  constructor(
+    public readonly branchName: string,
+    public readonly snapshotCount: number,
+    public readonly collapsibleState: vscode.TreeItemCollapsibleState
+  ) {
+    const displayName = branchName === 'unknown' ? '(unknown branch)' : branchName;
+    super(displayName, collapsibleState);
+
+    this.description = `${snapshotCount} snapshot${snapshotCount !== 1 ? 's' : ''}`;
+    this.tooltip = `Branch: ${displayName}\nSnapshots: ${snapshotCount}`;
+    this.contextValue = 'branch';
+    this.iconPath =
+      branchName === 'unknown' ? new vscode.ThemeIcon('question') : new vscode.ThemeIcon('git-branch');
+  }
+}
+
 export class SnapshotTreeItem extends vscode.TreeItem {
   constructor(
     public readonly snapshot: SnapshotMetadata,
@@ -95,7 +112,7 @@ export class SnapshotFolderTreeItem extends vscode.TreeItem {
   }
 }
 
-type TreeItem = SnapshotTreeItem | SnapshotFolderTreeItem | SnapshotFileTreeItem;
+type TreeItem = BranchTreeItem | SnapshotTreeItem | SnapshotFolderTreeItem | SnapshotFileTreeItem;
 
 const buildTreeItems = (
   diffFiles: DiffFileInfo[],
@@ -140,6 +157,7 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   private shadowGitService: ShadowGitService | null = null;
   private workspaceService: WorkspaceService | null = null;
   private treeViewMode: boolean = true;
+  private groupByBranch: boolean = false;
 
   constructor(private readonly snapshotContentProvider: SnapshotContentProvider) {
     this.initializeServices();
@@ -152,6 +170,15 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
   isTreeViewMode(): boolean {
     return this.treeViewMode;
+  }
+
+  setGroupByBranch(value: boolean): void {
+    this.groupByBranch = value;
+    this._onDidChangeTreeData.fire();
+  }
+
+  isGroupedByBranch(): boolean {
+    return this.groupByBranch;
   }
 
   private async initializeServices(): Promise<void> {
@@ -196,6 +223,14 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     }
 
     try {
+      // ブランチの子要素（ブランチグループモード時）
+      if (element instanceof BranchTreeItem) {
+        const snapshots = await this.shadowGitService.listSnapshots();
+        return snapshots
+          .filter((s) => s.branchName === element.branchName)
+          .map((snapshot) => new SnapshotTreeItem(snapshot, vscode.TreeItemCollapsibleState.Collapsed));
+      }
+
       // スナップショットの子要素
       if (element instanceof SnapshotTreeItem) {
         const diffFiles = await this.shadowGitService.getSnapshotDiffFiles(element.snapshot.id);
@@ -203,7 +238,9 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         if (this.treeViewMode) {
           return buildTreeItems(diffFiles, element.snapshot.id);
         } else {
-          return diffFiles.map((diffFile) => new SnapshotFileTreeItem(diffFile.file, element.snapshot.id, true, diffFile));
+          return diffFiles.map(
+            (diffFile) => new SnapshotFileTreeItem(diffFile.file, element.snapshot.id, true, diffFile)
+          );
         }
       }
 
@@ -212,14 +249,50 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         return buildTreeItems(element.childDiffFiles, element.snapshotId, element.folderPath);
       }
 
-      // スナップショット一覧を返す（ルート）
+      // ルートレベル
       const snapshots = await this.shadowGitService.listSnapshots();
-      return snapshots.map(
-        (snapshot) => new SnapshotTreeItem(snapshot, vscode.TreeItemCollapsibleState.Collapsed)
-      );
+
+      if (this.groupByBranch) {
+        return this.buildBranchGroups(snapshots);
+      }
+
+      // フラットリスト（既存の動作）
+      return snapshots.map((snapshot) => new SnapshotTreeItem(snapshot, vscode.TreeItemCollapsibleState.Collapsed));
     } catch {
       return [];
     }
+  }
+
+  private buildBranchGroups(snapshots: SnapshotMetadata[]): BranchTreeItem[] {
+    // ブランチごとにスナップショットをグループ化
+    const branchMap = new Map<string, SnapshotMetadata[]>();
+
+    for (const snapshot of snapshots) {
+      const branch = snapshot.branchName;
+      if (!branchMap.has(branch)) {
+        branchMap.set(branch, []);
+      }
+      branchMap.get(branch)!.push(snapshot);
+    }
+
+    // 最新スナップショット順でソート（unknownは最後）
+    const branches = Array.from(branchMap.entries())
+      .map(([branchName, branchSnapshots]) => ({
+        branchName,
+        count: branchSnapshots.length,
+        mostRecent: Math.max(...branchSnapshots.map((s) => s.timestamp.getTime())),
+      }))
+      .sort((a, b) => {
+        if (a.branchName === 'unknown') {
+          return 1;
+        }
+        if (b.branchName === 'unknown') {
+          return -1;
+        }
+        return b.mostRecent - a.mostRecent;
+      });
+
+    return branches.map((b) => new BranchTreeItem(b.branchName, b.count, vscode.TreeItemCollapsibleState.Collapsed));
   }
 
   getShadowGitService(): ShadowGitService | null {

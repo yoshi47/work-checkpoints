@@ -33,6 +33,13 @@ export const activate = (context: vscode.ExtensionContext) => {
   // Initialize context for tree view mode
   vscode.commands.executeCommand('setContext', 'workCheckpoints.treeViewMode', false);
 
+  // Initialize context for group by branch mode
+  const savedGroupByBranch = context.globalState.get('work-checkpoints.groupByBranch', false);
+  if (savedGroupByBranch) {
+    snapshotTreeProvider.setGroupByBranch(true);
+  }
+  vscode.commands.executeCommand('setContext', 'workCheckpoints.groupByBranch', savedGroupByBranch);
+
   // Register WebView provider for input
   const snapshotInputViewProvider = new SnapshotInputViewProvider(context.extensionUri);
   context.subscriptions.push(
@@ -97,6 +104,16 @@ export const activate = (context: vscode.ExtensionContext) => {
     vscode.commands.registerCommand('work-checkpoints.viewAsList', () => {
       snapshotTreeProvider.toggleViewMode();
       vscode.commands.executeCommand('setContext', 'workCheckpoints.treeViewMode', false);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.groupByBranch', () => {
+      snapshotTreeProvider.setGroupByBranch(true);
+      vscode.commands.executeCommand('setContext', 'workCheckpoints.groupByBranch', true);
+      context.globalState.update('work-checkpoints.groupByBranch', true);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.flatList', () => {
+      snapshotTreeProvider.setGroupByBranch(false);
+      vscode.commands.executeCommand('setContext', 'workCheckpoints.groupByBranch', false);
+      context.globalState.update('work-checkpoints.groupByBranch', false);
     }),
     vscode.commands.registerCommand('work-checkpoints.deleteAll', async () => {
       await deleteAllSnapshots();

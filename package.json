@@ -103,6 +103,16 @@
         "icon": "$(list-flat)"
       },
       {
+        "command": "work-checkpoints.groupByBranch",
+        "title": "Group by Branch",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "work-checkpoints.flatList",
+        "title": "Flat List",
+        "icon": "$(list-unordered)"
+      },
+      {
         "command": "work-checkpoints.deleteAll",
         "title": "Delete All Snapshots",
         "icon": "$(trash)"
@@ -165,6 +175,16 @@
     },
     "menus": {
       "view/title": [
+        {
+          "command": "work-checkpoints.groupByBranch",
+          "when": "view == workCheckpointsView && !workCheckpoints.groupByBranch",
+          "group": "navigation@0"
+        },
+        {
+          "command": "work-checkpoints.flatList",
+          "when": "view == workCheckpointsView && workCheckpoints.groupByBranch",
+          "group": "navigation@0"
+        },
         {
           "command": "work-checkpoints.viewAsTree",
           "when": "view == workCheckpointsView && !workCheckpoints.treeViewMode",
