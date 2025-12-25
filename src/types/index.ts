@@ -4,6 +4,7 @@ export interface SnapshotMetadata {
   timestamp: Date;
   description: string;
   fullMessage?: string;
+  isClaudeCreated?: boolean;
 }
 
 export interface ShadowRepoConfig {

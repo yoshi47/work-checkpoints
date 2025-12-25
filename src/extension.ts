@@ -40,6 +40,13 @@ export const activate = (context: vscode.ExtensionContext) => {
   }
   vscode.commands.executeCommand('setContext', 'workCheckpoints.groupByBranch', savedGroupByBranch);
 
+  // Initialize context for show Claude snapshots mode
+  const savedShowClaude = context.globalState.get('work-checkpoints.showClaudeSnapshots', true);
+  if (!savedShowClaude) {
+    snapshotTreeProvider.setShowClaudeSnapshots(false);
+  }
+  vscode.commands.executeCommand('setContext', 'workCheckpoints.showClaudeSnapshots', savedShowClaude);
+
   // Register WebView provider for input
   const snapshotInputViewProvider = new SnapshotInputViewProvider(context.extensionUri);
   context.subscriptions.push(
@@ -114,6 +121,16 @@ export const activate = (context: vscode.ExtensionContext) => {
       snapshotTreeProvider.setGroupByBranch(false);
       vscode.commands.executeCommand('setContext', 'workCheckpoints.groupByBranch', false);
       context.globalState.update('work-checkpoints.groupByBranch', false);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.showClaudeSnapshots', () => {
+      snapshotTreeProvider.setShowClaudeSnapshots(true);
+      vscode.commands.executeCommand('setContext', 'workCheckpoints.showClaudeSnapshots', true);
+      context.globalState.update('work-checkpoints.showClaudeSnapshots', true);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.hideClaudeSnapshots', () => {
+      snapshotTreeProvider.setShowClaudeSnapshots(false);
+      vscode.commands.executeCommand('setContext', 'workCheckpoints.showClaudeSnapshots', false);
+      context.globalState.update('work-checkpoints.showClaudeSnapshots', false);
     }),
     vscode.commands.registerCommand('work-checkpoints.deleteAll', async () => {
       await deleteAllSnapshots();

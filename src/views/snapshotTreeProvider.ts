@@ -158,6 +158,7 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   private workspaceService: WorkspaceService | null = null;
   private treeViewMode: boolean = true;
   private groupByBranch: boolean = false;
+  private showClaudeSnapshots: boolean = true;
 
   constructor(private readonly snapshotContentProvider: SnapshotContentProvider) {
     this.initializeServices();
@@ -179,6 +180,15 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
 
   isGroupedByBranch(): boolean {
     return this.groupByBranch;
+  }
+
+  setShowClaudeSnapshots(value: boolean): void {
+    this.showClaudeSnapshots = value;
+    this._onDidChangeTreeData.fire();
+  }
+
+  isShowingClaudeSnapshots(): boolean {
+    return this.showClaudeSnapshots;
   }
 
   private async initializeServices(): Promise<void> {
@@ -228,6 +238,7 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         const snapshots = await this.shadowGitService.listSnapshots();
         return snapshots
           .filter((s) => s.branchName === element.branchName)
+          .filter((s) => this.showClaudeSnapshots || !s.isClaudeCreated)
           .map((snapshot) => new SnapshotTreeItem(snapshot, vscode.TreeItemCollapsibleState.Collapsed));
       }
 
@@ -250,7 +261,12 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
       }
 
       // ルートレベル
-      const snapshots = await this.shadowGitService.listSnapshots();
+      let snapshots = await this.shadowGitService.listSnapshots();
+
+      // Claudeスナップショットのフィルタリング
+      if (!this.showClaudeSnapshots) {
+        snapshots = snapshots.filter((s) => !s.isClaudeCreated);
+      }
 
       if (this.groupByBranch) {
         return this.buildBranchGroups(snapshots);

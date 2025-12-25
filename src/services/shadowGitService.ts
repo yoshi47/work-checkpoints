@@ -322,20 +322,25 @@ export class ShadowGitService {
     // Try to extract branch from body trailer (new format with custom description)
     const trailerMatch = body.match(/^Branch: (.+)$/m);
     if (trailerMatch) {
-      const branchName = trailerMatch[1].replace(/^\[Claude\]\s*/, '');
+      const originalBranch = trailerMatch[1];
+      const isClaudeCreated = /^\[Claude\]/i.test(originalBranch);
+      const branchName = originalBranch.replace(/^\[Claude\]\s*/, '');
       return {
         id: commit.hash.substring(0, 7),
         branchName,
         timestamp: new Date(commit.date),
         description: message,
         fullMessage,
+        isClaudeCreated,
       };
     }
 
     // Fallback: try old format "${branch} @ ${date}"
     const oldFormatMatch = message.match(/^(.+) @ (.+)$/);
     if (oldFormatMatch) {
-      const branchName = oldFormatMatch[1].replace(/^\[Claude\]\s*/, '');
+      const originalBranch = oldFormatMatch[1];
+      const isClaudeCreated = /^\[Claude\]/i.test(originalBranch);
+      const branchName = originalBranch.replace(/^\[Claude\]\s*/, '');
       const parsedDate = new Date(oldFormatMatch[2]);
       return {
         id: commit.hash.substring(0, 7),
@@ -343,6 +348,7 @@ export class ShadowGitService {
         timestamp: isNaN(parsedDate.getTime()) ? new Date(commit.date) : parsedDate,
         description: message,
         fullMessage,
+        isClaudeCreated,
       };
     }
 
@@ -353,6 +359,7 @@ export class ShadowGitService {
       timestamp: new Date(commit.date),
       description: message,
       fullMessage,
+      isClaudeCreated: false,
     };
   };
 }
