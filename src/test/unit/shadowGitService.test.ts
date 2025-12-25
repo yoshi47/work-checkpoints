@@ -292,6 +292,41 @@ suite('ShadowGitService', () => {
     });
   });
 
+  suite('renameSnapshot and getRenamedIds', () => {
+    test('should rename a snapshot', async () => {
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      await shadowGitService.renameSnapshot(snapshot.id, 'My custom name');
+
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots[0].description, 'My custom name');
+    });
+
+    test('should return renamed IDs', async () => {
+      const snapshot1 = await shadowGitService.createSnapshot('main');
+
+      // Modify file for second snapshot
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      const snapshot2 = await shadowGitService.createSnapshot('main');
+
+      await shadowGitService.renameSnapshot(snapshot1.id, 'Renamed snapshot 1');
+
+      const renamedIds = await shadowGitService.getRenamedIds();
+
+      assert.strictEqual(renamedIds.size, 1);
+      assert.ok(renamedIds.has(snapshot1.id));
+      assert.ok(!renamedIds.has(snapshot2.id));
+    });
+
+    test('should return empty set when no snapshots are renamed', async () => {
+      await shadowGitService.createSnapshot('main');
+
+      const renamedIds = await shadowGitService.getRenamedIds();
+
+      assert.strictEqual(renamedIds.size, 0);
+    });
+  });
+
   suite('restoreSnapshot', () => {
     test('should restore workspace files to snapshot state', async () => {
       // スナップショット作成

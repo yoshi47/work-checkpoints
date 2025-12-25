@@ -287,6 +287,11 @@ export class ShadowGitService {
     await this.setRenamedMap(map);
   };
 
+  getRenamedIds = async (): Promise<Set<string>> => {
+    const map = await this.getRenamedMap();
+    return new Set(map.keys());
+  };
+
   private formatDate = (date: Date, format: string): string => {
     const pad = (n: number) => n.toString().padStart(2, '0');
     return format

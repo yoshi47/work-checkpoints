@@ -128,6 +128,11 @@
         "icon": "$(trash)"
       },
       {
+        "command": "work-checkpoints.deleteClaudeSnapshots",
+        "title": "Delete Claude Snapshots",
+        "icon": "$(trash)"
+      },
+      {
         "command": "work-checkpoints.openSettings",
         "title": "Open Settings",
         "icon": "$(gear)"
@@ -227,6 +232,11 @@
         },
         {
           "command": "work-checkpoints.deleteAll",
+          "when": "view == workCheckpointsView",
+          "group": "2_delete"
+        },
+        {
+          "command": "work-checkpoints.deleteClaudeSnapshots",
           "when": "view == workCheckpointsView",
           "group": "2_delete"
         },

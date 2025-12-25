@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { saveSnapshot } from './commands/saveSnapshot';
 import { restoreSnapshot } from './commands/restoreSnapshot';
-import { deleteSnapshots } from './commands/deleteSnapshots';
+import { deleteSnapshots, deleteClaudeSnapshots } from './commands/deleteSnapshots';
 import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem, SnapshotFolderTreeItem } from './views/snapshotTreeProvider';
 import { SnapshotInputViewProvider } from './views/snapshotInputViewProvider';
 import { SnapshotContentProvider } from './providers/snapshotContentProvider';
@@ -134,6 +134,10 @@ export const activate = (context: vscode.ExtensionContext) => {
     }),
     vscode.commands.registerCommand('work-checkpoints.deleteAll', async () => {
       await deleteAllSnapshots();
+      snapshotTreeProvider.refresh();
+    }),
+    vscode.commands.registerCommand('work-checkpoints.deleteClaudeSnapshots', async () => {
+      await deleteClaudeSnapshots();
       snapshotTreeProvider.refresh();
     }),
     vscode.commands.registerCommand('work-checkpoints.openSettings', () => {

@@ -7,11 +7,11 @@ interface SnapshotQuickPickItem extends vscode.QuickPickItem {
   snapshot: SnapshotMetadata;
 }
 
-export const deleteSnapshots = async (): Promise<void> => {
+const initializeServices = async (): Promise<{ workspaceService: WorkspaceService; shadowGitService: ShadowGitService } | null> => {
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
     vscode.window.showErrorMessage('No workspace folder is open.');
-    return;
+    return null;
   }
 
   const workspacePath = workspaceFolders[0].uri.fsPath;
@@ -20,15 +20,23 @@ export const deleteSnapshots = async (): Promise<void> => {
   const gitRoot = await workspaceService.getGitRoot();
   if (!gitRoot) {
     vscode.window.showErrorMessage('No Git repository found in workspace.');
-    return;
+    return null;
   }
 
-  // Re-initialize with git root to ensure correct git operations
   workspaceService = new WorkspaceService(gitRoot);
-
   const remoteUrl = await workspaceService.getRemoteOriginUrl();
   const shadowGitService = new ShadowGitService(remoteUrl, gitRoot);
 
+  return { workspaceService, shadowGitService };
+};
+
+export const deleteSnapshots = async (): Promise<void> => {
+  const services = await initializeServices();
+  if (!services) {
+    return;
+  }
+
+  const { shadowGitService } = services;
   const snapshots = await shadowGitService.listSnapshots();
   if (snapshots.length === 0) {
     vscode.window.showInformationMessage('No snapshots available.');
@@ -72,6 +80,54 @@ export const deleteSnapshots = async (): Promise<void> => {
 
       vscode.window.showInformationMessage(
         `Deleted ${selected.length} snapshot(s).`
+      );
+    }
+  );
+};
+
+export const deleteClaudeSnapshots = async (): Promise<void> => {
+  const services = await initializeServices();
+  if (!services) {
+    return;
+  }
+
+  const { shadowGitService } = services;
+  const allSnapshots = await shadowGitService.listSnapshots();
+  const renamedIds = await shadowGitService.getRenamedIds();
+
+  // フィルタ: Claude作成かつリネームされていないもの
+  const claudeSnapshots = allSnapshots.filter(
+    (s) => s.isClaudeCreated && !renamedIds.has(s.id)
+  );
+
+  if (claudeSnapshots.length === 0) {
+    vscode.window.showInformationMessage('No Claude snapshots to delete.');
+    return;
+  }
+
+  const confirm = await vscode.window.showWarningMessage(
+    `Delete ${claudeSnapshots.length} Claude snapshot(s)? (Renamed snapshots are preserved) This action cannot be undone.`,
+    { modal: true },
+    'Delete'
+  );
+
+  if (confirm !== 'Delete') {
+    return;
+  }
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'Deleting Claude snapshots...',
+      cancellable: false,
+    },
+    async () => {
+      for (const snapshot of claudeSnapshots) {
+        await shadowGitService.deleteSnapshot(snapshot.id);
+      }
+
+      vscode.window.showInformationMessage(
+        `Deleted ${claudeSnapshots.length} Claude snapshot(s).`
       );
     }
   );
