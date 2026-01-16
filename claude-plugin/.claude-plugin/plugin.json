@@ -1,6 +1,6 @@
 {
   "name": "work-checkpoints",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Automatically save work checkpoints when sending messages",
   "author": {
     "name": "kururu6966"
