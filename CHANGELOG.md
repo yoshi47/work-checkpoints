@@ -4,6 +4,14 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.5.2] - 2026-01-16
+
+### Changed
+- Added marketplace version field to Claude plugin configuration
+- Added required marketplace.json fields for discover visibility
+- Updated Claude plugin marketplace.json to version 1.0.2
+- Organized Claude plugin configuration files
+
 ## [0.5.1] - 2026-01-16
 
 ### Changed
