@@ -4,6 +4,11 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.5.1] - 2026-01-16
+
+### Changed
+- Simplified Claude plugin config file paths by removing unnecessary parent directory references
+
 ## [0.5.0] - 2025-12-25
 
 ### Added
