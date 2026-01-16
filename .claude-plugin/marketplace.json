@@ -1,20 +1,17 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "work-checkpoints-plugin",
-  "version": "1.0.0",
-  "description": "Automatic work checkpoint management for Claude Code sessions",
   "owner": {
     "name": "kururu6966"
   },
   "plugins": [
     {
       "name": "work-checkpoints",
+      "source": "./claude-plugin",
       "description": "Automatically save work checkpoints when sending messages",
       "version": "1.0.2",
       "author": {
         "name": "kururu6966"
       },
-      "source": "./claude-plugin",
       "category": "productivity"
     }
   ]

@@ -1,10 +1,9 @@
 {
   "name": "work-checkpoints",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Automatically save work checkpoints when sending messages",
   "author": {
     "name": "kururu6966"
   },
-  "hooks": "hooks/hooks.json",
-  "commands": "commands/restore-checkpoint.md"
+  "commands": ["./commands/restore-checkpoint.md"]
 }
