@@ -360,4 +360,144 @@ suite('ShadowGitService', () => {
       assert.strictEqual(exists, false);
     });
   });
+
+  suite('toggleFavorite', () => {
+    test('should add snapshot to favorites', async () => {
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      const isFavorite = await shadowGitService.toggleFavorite(snapshot.id);
+
+      assert.strictEqual(isFavorite, true);
+
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots[0].isFavorite, true);
+    });
+
+    test('should remove snapshot from favorites when toggled again', async () => {
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      await shadowGitService.toggleFavorite(snapshot.id);
+      const isFavorite = await shadowGitService.toggleFavorite(snapshot.id);
+
+      assert.strictEqual(isFavorite, false);
+
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots[0].isFavorite, false);
+    });
+
+    test('should sort favorites to the top of the list', async () => {
+      const snapshot1 = await shadowGitService.createSnapshot('branch1');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      const snapshot2 = await shadowGitService.createSnapshot('branch2');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
+      const snapshot3 = await shadowGitService.createSnapshot('branch3');
+
+      // Mark snapshot2 as favorite
+      await shadowGitService.toggleFavorite(snapshot2.id);
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      assert.strictEqual(snapshots.length, 3);
+      assert.strictEqual(snapshots[0].id, snapshot2.id);
+      assert.strictEqual(snapshots[0].isFavorite, true);
+    });
+
+    test('should maintain order among favorites', async () => {
+      const snapshot1 = await shadowGitService.createSnapshot('branch1');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      const snapshot2 = await shadowGitService.createSnapshot('branch2');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
+      const snapshot3 = await shadowGitService.createSnapshot('branch3');
+
+      // Mark snapshot1 and snapshot3 as favorites
+      await shadowGitService.toggleFavorite(snapshot1.id);
+      await shadowGitService.toggleFavorite(snapshot3.id);
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      // Favorites should be at the top in their original order
+      assert.strictEqual(snapshots[0].id, snapshot3.id);
+      assert.strictEqual(snapshots[0].isFavorite, true);
+      assert.strictEqual(snapshots[1].id, snapshot1.id);
+      assert.strictEqual(snapshots[1].isFavorite, true);
+      assert.strictEqual(snapshots[2].id, snapshot2.id);
+      assert.strictEqual(snapshots[2].isFavorite, false);
+    });
+  });
+
+  suite('deleteOldSnapshots', () => {
+    test('should delete snapshots older than retention days', async () => {
+      const snapshot1 = await shadowGitService.createSnapshot('branch1');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      const snapshot2 = await shadowGitService.createSnapshot('branch2');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
+      const snapshot3 = await shadowGitService.createSnapshot('branch3');
+
+      // Delete snapshots older than 0 days (should delete all)
+      const deletedCount = await shadowGitService.deleteOldSnapshots(0);
+
+      assert.strictEqual(deletedCount, 3);
+
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots.length, 0);
+    });
+
+    test('should not delete favorite snapshots', async () => {
+      const snapshot1 = await shadowGitService.createSnapshot('branch1');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      const snapshot2 = await shadowGitService.createSnapshot('branch2');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
+      const snapshot3 = await shadowGitService.createSnapshot('branch3');
+
+      // Mark snapshot2 as favorite
+      await shadowGitService.toggleFavorite(snapshot2.id);
+
+      // Delete snapshots older than 0 days
+      const deletedCount = await shadowGitService.deleteOldSnapshots(0);
+
+      assert.strictEqual(deletedCount, 2);
+
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots.length, 1);
+      assert.strictEqual(snapshots[0].id, snapshot2.id);
+      assert.strictEqual(snapshots[0].isFavorite, true);
+    });
+
+    test('should only delete snapshots older than specified days', async () => {
+      const snapshot1 = await shadowGitService.createSnapshot('branch1');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      const snapshot2 = await shadowGitService.createSnapshot('branch2');
+
+      // Delete snapshots older than 365 days (should delete none)
+      const deletedCount = await shadowGitService.deleteOldSnapshots(365);
+
+      assert.strictEqual(deletedCount, 0);
+
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots.length, 2);
+    });
+
+    test('should return correct count of deleted snapshots', async () => {
+      await shadowGitService.createSnapshot('branch1');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      await shadowGitService.createSnapshot('branch2');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
+      await shadowGitService.createSnapshot('branch3');
+
+      const deletedCount = await shadowGitService.deleteOldSnapshots(0);
+
+      assert.strictEqual(deletedCount, 3);
+    });
+  });
 });

@@ -7,9 +7,11 @@ import { deleteSnapshots, deleteClaudeSnapshots } from './commands/deleteSnapsho
 import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem, SnapshotFolderTreeItem } from './views/snapshotTreeProvider';
 import { SnapshotInputViewProvider } from './views/snapshotInputViewProvider';
 import { SnapshotContentProvider } from './providers/snapshotContentProvider';
+import { AutoCleanupService } from './services/autoCleanupService';
 
 let snapshotTreeProvider: SnapshotTreeProvider;
 let snapshotContentProvider: SnapshotContentProvider;
+let autoCleanupService: AutoCleanupService;
 
 export const activate = (context: vscode.ExtensionContext) => {
   console.log('Work Checkpoints extension is now active!');
@@ -56,6 +58,10 @@ export const activate = (context: vscode.ExtensionContext) => {
     )
   );
 
+  // Initialize auto-cleanup service
+  autoCleanupService = new AutoCleanupService(() => snapshotTreeProvider.getShadowGitService());
+  autoCleanupService.start();
+
   // Register commands
   context.subscriptions.push(
     treeView,
@@ -84,6 +90,14 @@ export const activate = (context: vscode.ExtensionContext) => {
     }),
     vscode.commands.registerCommand('work-checkpoints.renameItem', async (item: SnapshotTreeItem) => {
       await renameSnapshotItem(item);
+      snapshotTreeProvider.refresh();
+    }),
+    vscode.commands.registerCommand('work-checkpoints.toggleFavorite', async (item: SnapshotTreeItem) => {
+      await toggleFavoriteItem(item);
+      snapshotTreeProvider.refresh();
+    }),
+    vscode.commands.registerCommand('work-checkpoints.removeFavorite', async (item: SnapshotTreeItem) => {
+      await removeFavoriteItem(item);
       snapshotTreeProvider.refresh();
     }),
     vscode.commands.registerCommand('work-checkpoints.showFileDiff', async (item: SnapshotFileTreeItem) => {
@@ -153,6 +167,7 @@ export const activate = (context: vscode.ExtensionContext) => {
   );
 };
 
+
 const restoreSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
   const shadowGitService = snapshotTreeProvider.getShadowGitService();
   const workspaceService = snapshotTreeProvider.getWorkspaceService();
@@ -211,6 +226,33 @@ const renameSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
 
   await shadowGitService.renameSnapshot(item.snapshot.id, newName);
   vscode.window.showInformationMessage(`Snapshot renamed to: ${newName}`);
+};
+
+const toggleFavoriteItem = async (item: SnapshotTreeItem): Promise<void> => {
+  const shadowGitService = snapshotTreeProvider.getShadowGitService();
+
+  if (!shadowGitService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const isFavorite = await shadowGitService.toggleFavorite(item.snapshot.id);
+  const message = isFavorite
+    ? `Added to favorites: ${item.snapshot.description}`
+    : `Removed from favorites: ${item.snapshot.description}`;
+  vscode.window.showInformationMessage(message);
+};
+
+const removeFavoriteItem = async (item: SnapshotTreeItem): Promise<void> => {
+  const shadowGitService = snapshotTreeProvider.getShadowGitService();
+
+  if (!shadowGitService) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  await shadowGitService.toggleFavorite(item.snapshot.id);
+  vscode.window.showInformationMessage(`Removed from favorites: ${item.snapshot.description}`);
 };
 
 const deleteSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
@@ -477,4 +519,8 @@ const deleteFolderItem = async (item: SnapshotFolderTreeItem): Promise<void> => 
   vscode.window.showInformationMessage(`Folder deleted: ${item.folderPath}`);
 };
 
-export const deactivate = () => {};
+export const deactivate = () => {
+  if (autoCleanupService) {
+    autoCleanupService.stop();
+  }
+};

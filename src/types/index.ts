@@ -5,6 +5,7 @@ export interface SnapshotMetadata {
   description: string;
   fullMessage?: string;
   isClaudeCreated?: boolean;
+  isFavorite?: boolean;
 }
 
 export interface ShadowRepoConfig {

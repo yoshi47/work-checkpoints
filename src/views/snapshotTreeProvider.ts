@@ -31,7 +31,11 @@ export class SnapshotTreeItem extends vscode.TreeItem {
 
     this.tooltip = `${snapshot.fullMessage || snapshot.description}\nBranch: ${snapshot.branchName}\nDate: ${snapshot.timestamp.toLocaleString()}`;
     this.description = `[${snapshot.branchName}] ${snapshot.id}`;
-    this.contextValue = 'snapshot';
+    this.contextValue = snapshot.isFavorite ? 'snapshotFavorite' : 'snapshot';
+
+    if (snapshot.isFavorite) {
+      this.iconPath = new vscode.ThemeIcon('star-full');
+    }
   }
 }
 

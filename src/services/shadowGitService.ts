@@ -34,6 +34,10 @@ export class ShadowGitService {
     return path.join(this.config.shadowRepoPath, '.renamed');
   }
 
+  private get favoritesFilePath(): string {
+    return path.join(this.config.shadowRepoPath, '.favorites');
+  }
+
   private getGit = (): SimpleGit => {
     if (!this.git) {
       // 環境変数をサニタイズ（Dev Container対応）
@@ -180,17 +184,30 @@ export class ShadowGitService {
       const log = await git.log({ maxCount: 100 });
       const deletedIds = await this.getDeletedIds();
       const renamedMap = await this.getRenamedMap();
+      const favoriteIds = await this.getFavoriteIds();
 
-      return log.all
+      const snapshots = log.all
         .map((commit) => this.parseCommitMetadata(commit))
         .filter((snapshot) => !deletedIds.has(snapshot.id))
         .map((snapshot) => {
           const renamedDescription = renamedMap.get(snapshot.id);
+          const isFavorite = favoriteIds.has(snapshot.id);
           if (renamedDescription) {
-            return { ...snapshot, description: renamedDescription };
+            return { ...snapshot, description: renamedDescription, isFavorite };
           }
-          return snapshot;
+          return { ...snapshot, isFavorite };
         });
+
+      // Sort favorites to the top
+      return snapshots.sort((a, b) => {
+        if (a.isFavorite && !b.isFavorite) {
+          return -1;
+        }
+        if (!a.isFavorite && b.isFavorite) {
+          return 1;
+        }
+        return 0;
+      });
     } catch {
       return [];
     }
@@ -290,6 +307,60 @@ export class ShadowGitService {
   getRenamedIds = async (): Promise<Set<string>> => {
     const map = await this.getRenamedMap();
     return new Set(map.keys());
+  };
+
+  private getFavoriteIds = async (): Promise<Set<string>> => {
+    try {
+      const content = await fs.readFile(this.favoritesFilePath, 'utf-8');
+      return new Set(content.split('\n').filter(Boolean));
+    } catch {
+      return new Set();
+    }
+  };
+
+  private addFavoriteId = async (id: string): Promise<void> => {
+    const favoriteIds = await this.getFavoriteIds();
+    favoriteIds.add(id);
+    await fs.writeFile(this.favoritesFilePath, [...favoriteIds].join('\n'));
+  };
+
+  private removeFavoriteId = async (id: string): Promise<void> => {
+    const favoriteIds = await this.getFavoriteIds();
+    favoriteIds.delete(id);
+    await fs.writeFile(this.favoritesFilePath, [...favoriteIds].join('\n'));
+  };
+
+  toggleFavorite = async (id: string): Promise<boolean> => {
+    const favoriteIds = await this.getFavoriteIds();
+    if (favoriteIds.has(id)) {
+      await this.removeFavoriteId(id);
+      return false;
+    } else {
+      await this.addFavoriteId(id);
+      return true;
+    }
+  };
+
+  deleteOldSnapshots = async (retentionDays: number): Promise<number> => {
+    const snapshots = await this.listSnapshots();
+    const now = new Date();
+    const cutoffDate = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+
+    let deletedCount = 0;
+    for (const snapshot of snapshots) {
+      // Skip favorites
+      if (snapshot.isFavorite) {
+        continue;
+      }
+
+      // Delete if older than cutoff date
+      if (snapshot.timestamp < cutoffDate) {
+        await this.deleteSnapshot(snapshot.id);
+        deletedCount++;
+      }
+    }
+
+    return deletedCount;
   };
 
   private formatDate = (date: Date, format: string): string => {
