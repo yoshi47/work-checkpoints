@@ -4,6 +4,11 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.5.3] - 2026-01-19
+
+### Changed
+- Removed VS Code extension template quickstart guide documentation
+
 ## [0.5.2] - 2026-01-16
 
 ### Changed
