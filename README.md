@@ -6,6 +6,8 @@ Save and restore work snapshots using a shadow Git repository. Perfect for exper
 
 - **Save Snapshots**: Capture your current work state at any time
 - **Restore Snapshots**: Revert to a previous snapshot with one click
+- **Favorites**: Mark important snapshots as favorites to protect them from auto-deletion
+- **Auto-Cleanup**: Automatically delete old snapshots based on retention period
 - **File-level Operations**: View diffs, restore, or delete individual files
 - **Folder Operations**: Restore or delete entire folders
 - **Rename Snapshots**: Give meaningful names to your checkpoints
@@ -42,6 +44,13 @@ Right-click on a snapshot and select **Rename** to give it a meaningful name.
 
 Use the **Group by Branch** command to organize snapshots by branch. Switch back to flat list view with **Flat List** command.
 
+### Mark Favorites
+
+Click the star icon on a snapshot to mark it as a favorite. Favorite snapshots are:
+- Displayed at the top of the list
+- Protected from auto-deletion
+- Clearly indicated with a filled star icon
+
 ### Manage Claude Snapshots
 
 - Use **Show/Hide Claude Snapshots** to toggle visibility of Claude-created snapshots
@@ -68,6 +77,7 @@ Use the **Group by Branch** command to organize snapshots by branch. Switch back
 | `work-checkpoints.dateFormat` | `yyyy/MM/dd HH:mm:ss` | Date format. Tokens: `yyyy`, `MM`, `dd`, `HH`, `mm`, `ss` |
 | `work-checkpoints.showDeleteAllButton` | `true` | Show "Delete All" button in snapshot input panel |
 | `work-checkpoints.ignorePatterns` | `[]` | Additional patterns to ignore when creating snapshots (gitignore format) |
+| `work-checkpoints.retentionDays` | `0` | Number of days to keep snapshots before auto-deletion. Set to 0 to disable auto-deletion. Favorites are always excluded. |
 
 ### Examples
 

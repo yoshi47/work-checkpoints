@@ -4,6 +4,21 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.6.0] - 2026-01-19
+
+### Added
+- Favorites feature for snapshots with star icons
+- Auto-cleanup service with configurable retention period (`work-checkpoints.retentionDays` setting)
+- Favorite snapshots are protected from auto-deletion and displayed at the top of the list
+- Toggle favorite and remove favorite commands in snapshot context menu
+- Comprehensive tests for favorites and auto-cleanup functionality
+
+### Fixed
+- Enhanced Git operation robustness with retry mechanism for lock conflicts
+- Improved file and folder restoration with error handling and progress display
+- Optimized Git configuration (reduced maxConcurrentProcesses to prevent lock conflicts, added timeout)
+- Better file path handling for spaces and special characters using null-terminated strings
+
 ## [0.5.3] - 2026-01-19
 
 ### Changed
