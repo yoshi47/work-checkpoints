@@ -50,11 +50,60 @@ export class ShadowGitService {
       this.git = simpleGit({
         baseDir: this.config.shadowRepoPath,
         binary: 'git',
-        maxConcurrentProcesses: 6,
+        maxConcurrentProcesses: 1,
         config: [],
+        timeout: {
+          block: 30000, // 30 seconds timeout for blocking operations
+        },
       }).env(sanitizedEnv);
     }
     return this.git;
+  };
+
+  private removeLockFile = async (): Promise<void> => {
+    const gitDir = path.join(this.config.shadowRepoPath, '.git');
+    const lockFiles = [
+      path.join(gitDir, 'index.lock'),
+      path.join(gitDir, 'HEAD.lock'),
+      path.join(gitDir, 'refs', 'heads', '*.lock'),
+    ];
+
+    for (const lockFile of lockFiles) {
+      try {
+        await fs.unlink(lockFile);
+      } catch {
+        // Lock file doesn't exist or can't be removed
+      }
+    }
+  };
+
+  private retryGitOperation = async <T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    delayMs: number = 100
+  ): Promise<T> => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isLockError =
+          errorMessage.includes('index.lock') ||
+          errorMessage.includes('unable to create') ||
+          errorMessage.includes('Another git process seems to be running') ||
+          errorMessage.includes('git process') ||
+          errorMessage.includes('remove the file manually');
+
+        if (isLockError && attempt < maxRetries - 1) {
+          // Remove stale lock file and retry
+          await this.removeLockFile();
+          await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+        } else {
+          throw error;
+        }
+      }
+    }
+    throw new Error('Git operation failed after retries');
   };
 
   private getDeletedIds = async (): Promise<Set<string>> => {
@@ -97,17 +146,22 @@ export class ShadowGitService {
     try {
       await fs.access(path.join(this.config.shadowRepoPath, '.git'));
 
+      // Clean up any stale lock files first
+      await this.removeLockFile();
+
       // 既存のリポジトリがある場合、core.worktree が正しく設定されているか確認
       const git = this.getGit();
-      try {
-        const currentWorktree = await git.raw(['config', '--get', 'core.worktree']);
-        if (currentWorktree.trim() !== this.workspacePath) {
+      await this.retryGitOperation(async () => {
+        try {
+          const currentWorktree = await git.raw(['config', '--get', 'core.worktree']);
+          if (currentWorktree.trim() !== this.workspacePath) {
+            await git.addConfig('core.worktree', this.workspacePath);
+          }
+        } catch {
+          // core.worktree が設定されていない場合は設定する
           await git.addConfig('core.worktree', this.workspacePath);
         }
-      } catch {
-        // core.worktree が設定されていない場合は設定する
-        await git.addConfig('core.worktree', this.workspacePath);
-      }
+      });
 
       // 除外パターンを更新（設定変更を反映）
       const config = vscode.workspace.getConfiguration('work-checkpoints');
@@ -117,12 +171,15 @@ export class ShadowGitService {
       // Shadow repo が存在しない場合は新規作成
       await fs.mkdir(this.config.shadowRepoPath, { recursive: true });
       const git = this.getGit();
-      await git.init();
 
-      // core.worktree を設定してワークスペースを直接参照
-      await git.addConfig('core.worktree', this.workspacePath);
-      await git.addConfig('user.email', 'work-checkpoints@local');
-      await git.addConfig('user.name', 'Work Checkpoints');
+      await this.retryGitOperation(async () => {
+        await git.init();
+
+        // core.worktree を設定してワークスペースを直接参照
+        await git.addConfig('core.worktree', this.workspacePath);
+        await git.addConfig('user.email', 'work-checkpoints@local');
+        await git.addConfig('user.name', 'Work Checkpoints');
+      });
 
       // 除外パターンを設定
       const config = vscode.workspace.getConfiguration('work-checkpoints');
@@ -142,7 +199,9 @@ export class ShadowGitService {
     const git = this.getGit();
 
     // git add . で直接ワークスペースをステージング（ファイルコピー不要！）
-    await git.add('.');
+    await this.retryGitOperation(async () => {
+      await git.add('.');
+    });
 
     // ステージングエリアに変更があるか確認
     const status = await git.status();
@@ -159,9 +218,13 @@ export class ShadowGitService {
       ? `${customDescription}\n\nBranch: ${branchName}`
       : description;
 
-    await git.commit(commitMessage);
+    await this.retryGitOperation(async () => {
+      await git.commit(commitMessage);
+    });
 
-    const log = await git.log({ maxCount: 1 });
+    const log = await this.retryGitOperation(async () => {
+      return await git.log({ maxCount: 1 });
+    });
     const latestCommit = log.latest;
 
     return {
@@ -181,7 +244,9 @@ export class ShadowGitService {
 
     try {
       const git = this.getGit();
-      const log = await git.log({ maxCount: 100 });
+      const log = await this.retryGitOperation(async () => {
+        return await git.log({ maxCount: 100 });
+      });
       const deletedIds = await this.getDeletedIds();
       const renamedMap = await this.getRenamedMap();
       const favoriteIds = await this.getFavoriteIds();
@@ -215,8 +280,13 @@ export class ShadowGitService {
 
   getSnapshotFileNames = async (snapshotId: string): Promise<string[]> => {
     const git = this.getGit();
-    const fileList = await git.raw(['ls-tree', '-r', '--name-only', snapshotId]);
-    return fileList.trim().split('\n').filter(Boolean);
+    const fileList = await this.retryGitOperation(async () => {
+      return await git.raw(['ls-tree', '-r', '--name-only', '-z', snapshotId]);
+    });
+    return fileList
+      .split('\0')
+      .filter(Boolean)
+      .map((p) => this.unquoteGitPath(p));
   };
 
   getSnapshotDiffFiles = async (snapshotId: string): Promise<DiffFileInfo[]> => {
@@ -226,7 +296,9 @@ export class ShadowGitService {
     const git = this.getGit();
 
     // ファイル状態を取得 (A=追加, M=変更, D=削除)
-    const nameStatusOutput = await git.diff(['--name-status', snapshotId]);
+    const nameStatusOutput = await this.retryGitOperation(async () => {
+      return await git.diff(['--name-status', snapshotId]);
+    });
     const statusMap = new Map<string, DiffFileStatus>();
     for (const line of nameStatusOutput.trim().split('\n').filter(Boolean)) {
       const [status, file] = line.split('\t');
@@ -238,7 +310,9 @@ export class ShadowGitService {
     }
 
     // 追加/削除行数を取得
-    const numstatOutput = await git.diff(['--numstat', snapshotId]);
+    const numstatOutput = await this.retryGitOperation(async () => {
+      return await git.diff(['--numstat', snapshotId]);
+    });
     const result: DiffFileInfo[] = [];
     for (const line of numstatOutput.trim().split('\n').filter(Boolean)) {
       const [insertions, deletions, file] = line.split('\t');
@@ -255,30 +329,63 @@ export class ShadowGitService {
     return result;
   };
 
+  private unquoteGitPath = (path: string): string => {
+    // Git が引用符で囲んだパスを処理する
+    // 例: "\"path with spaces\"" -> "path with spaces"
+    if (path.startsWith('"') && path.endsWith('"')) {
+      // 引用符を削除してエスケープシーケンスを処理
+      return path
+        .slice(1, -1)
+        .replace(/\\([0-7]{3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8)))
+        .replace(/\\(.)/g, '$1');
+    }
+    return path;
+  };
+
   getSnapshotFiles = async (snapshotId: string): Promise<Map<string, Buffer>> => {
     const files = new Map<string, Buffer>();
     const git = this.getGit();
 
-    // Get the file list at that commit
-    const fileList = await git.raw(['ls-tree', '-r', '--name-only', snapshotId]);
-    const filePaths = fileList.trim().split('\n').filter(Boolean);
+    try {
+      // Get the file list at that commit
+      // -z を使って null 文字区切りで取得（スペースや特殊文字に対応）
+      const fileList = await this.retryGitOperation(async () => {
+        return await git.raw(['ls-tree', '-r', '--name-only', '-z', snapshotId]);
+      });
+      const filePaths = fileList
+        .split('\0')
+        .filter(Boolean)
+        .map((p) => this.unquoteGitPath(p));
 
-    for (const filePath of filePaths) {
-      try {
-        const content = await git.show([`${snapshotId}:${filePath}`]);
-        files.set(filePath, Buffer.from(content, 'utf-8'));
-      } catch {
-        // Skip files that can't be read (binary, etc.)
+      console.log(`[getSnapshotFiles] Found ${filePaths.length} files in snapshot ${snapshotId}`);
+
+      for (const filePath of filePaths) {
+        try {
+          const content = await this.retryGitOperation(async () => {
+            const result = await git.show([`${snapshotId}:${filePath}`]);
+            return Buffer.from(result, 'binary');
+          });
+          files.set(filePath, content);
+        } catch (error) {
+          console.warn(`[getSnapshotFiles] Failed to read file ${filePath}:`, error);
+          // Skip files that can't be read (binary, etc.)
+        }
       }
-    }
 
-    return files;
+      console.log(`[getSnapshotFiles] Successfully read ${files.size} files`);
+      return files;
+    } catch (error) {
+      console.error(`[getSnapshotFiles] Error getting snapshot files:`, error);
+      throw error;
+    }
   };
 
   getSnapshotFileContent = async (snapshotId: string, filePath: string): Promise<string> => {
     const git = this.getGit();
     try {
-      return await git.show([`${snapshotId}:${filePath}`]);
+      return await this.retryGitOperation(async () => {
+        return await git.show([`${snapshotId}:${filePath}`]);
+      });
     } catch {
       return '';
     }
@@ -290,8 +397,10 @@ export class ShadowGitService {
     const git = this.getGit();
 
     // 未追跡ファイルを削除し、指定コミットに復元
-    await git.clean('f', ['-d']);
-    await git.reset(['--hard', snapshotId]);
+    await this.retryGitOperation(async () => {
+      await git.clean('f', ['-d']);
+      await git.reset(['--hard', snapshotId]);
+    });
   };
 
   deleteSnapshot = async (snapshotId: string): Promise<void> => {

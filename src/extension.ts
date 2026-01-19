@@ -352,43 +352,57 @@ const showFileDiff = async (item: SnapshotFileTreeItem): Promise<void> => {
 };
 
 const restoreFileItem = async (item: SnapshotFileTreeItem): Promise<void> => {
-  const shadowGitService = snapshotTreeProvider.getShadowGitService();
-  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+  try {
+    const shadowGitService = snapshotTreeProvider.getShadowGitService();
+    const workspaceService = snapshotTreeProvider.getWorkspaceService();
 
-  if (!shadowGitService || !workspaceService) {
-    vscode.window.showErrorMessage('No Git repository found in workspace.');
-    return;
+    if (!shadowGitService || !workspaceService) {
+      vscode.window.showErrorMessage('No Git repository found in workspace.');
+      return;
+    }
+
+    const gitRoot = await workspaceService.getGitRoot();
+    if (!gitRoot) {
+      vscode.window.showErrorMessage('No Git repository found in workspace.');
+      return;
+    }
+
+    const confirm = await vscode.window.showWarningMessage(
+      `Restore "${item.filePath}" from snapshot? This will overwrite the current file.`,
+      { modal: true },
+      'Restore'
+    );
+
+    if (confirm !== 'Restore') {
+      return;
+    }
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Restoring file: ${item.filePath}`,
+        cancellable: false,
+      },
+      async () => {
+        const content = await shadowGitService.getSnapshotFileContent(item.snapshotId, item.filePath);
+
+        if (!content) {
+          vscode.window.showErrorMessage('File not found in snapshot.');
+          return;
+        }
+
+        const fullPath = path.join(gitRoot, item.filePath);
+        await fs.mkdir(path.dirname(fullPath), { recursive: true });
+        await fs.writeFile(fullPath, content);
+
+        vscode.window.showInformationMessage(`File restored: ${item.filePath}`);
+      }
+    );
+  } catch (error) {
+    vscode.window.showErrorMessage(
+      `Failed to restore file: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
-
-  const gitRoot = await workspaceService.getGitRoot();
-  if (!gitRoot) {
-    vscode.window.showErrorMessage('No Git repository found in workspace.');
-    return;
-  }
-
-  const confirm = await vscode.window.showWarningMessage(
-    `Restore "${item.filePath}" from snapshot? This will overwrite the current file.`,
-    { modal: true },
-    'Restore'
-  );
-
-  if (confirm !== 'Restore') {
-    return;
-  }
-
-  const files = await shadowGitService.getSnapshotFiles(item.snapshotId);
-  const content = files.get(item.filePath);
-
-  if (!content) {
-    vscode.window.showErrorMessage('File not found in snapshot.');
-    return;
-  }
-
-  const fullPath = path.join(gitRoot, item.filePath);
-  await fs.mkdir(path.dirname(fullPath), { recursive: true });
-  await fs.writeFile(fullPath, content);
-
-  vscode.window.showInformationMessage(`File restored: ${item.filePath}`);
 };
 
 const deleteFileItem = async (item: SnapshotFileTreeItem): Promise<void> => {
@@ -435,51 +449,68 @@ const openFileAtRevision = async (item: SnapshotFileTreeItem): Promise<void> => 
 };
 
 const restoreFolderItem = async (item: SnapshotFolderTreeItem): Promise<void> => {
-  const shadowGitService = snapshotTreeProvider.getShadowGitService();
-  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+  try {
+    const shadowGitService = snapshotTreeProvider.getShadowGitService();
+    const workspaceService = snapshotTreeProvider.getWorkspaceService();
 
-  if (!shadowGitService || !workspaceService) {
-    vscode.window.showErrorMessage('No Git repository found in workspace.');
-    return;
-  }
+    if (!shadowGitService || !workspaceService) {
+      vscode.window.showErrorMessage('No Git repository found in workspace.');
+      return;
+    }
 
-  const gitRoot = await workspaceService.getGitRoot();
-  if (!gitRoot) {
-    vscode.window.showErrorMessage('No Git repository found in workspace.');
-    return;
-  }
+    const gitRoot = await workspaceService.getGitRoot();
+    if (!gitRoot) {
+      vscode.window.showErrorMessage('No Git repository found in workspace.');
+      return;
+    }
 
-  const confirm = await vscode.window.showWarningMessage(
-    `Restore folder "${item.folderPath}" (${item.childPaths.length} files) from snapshot? This will overwrite current files.`,
-    { modal: true },
-    'Restore'
-  );
+    const confirm = await vscode.window.showWarningMessage(
+      `Restore folder "${item.folderPath}" (${item.childPaths.length} files) from snapshot? This will overwrite current files.`,
+      { modal: true },
+      'Restore'
+    );
 
-  if (confirm !== 'Restore') {
-    return;
-  }
+    if (confirm !== 'Restore') {
+      return;
+    }
 
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: 'Restoring folder...',
-      cancellable: false,
-    },
-    async () => {
-      const files = await shadowGitService.getSnapshotFiles(item.snapshotId);
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Restoring folder: ${item.folderPath}`,
+        cancellable: false,
+      },
+      async (progress) => {
+        let restoredCount = 0;
+        for (let i = 0; i < item.childPaths.length; i++) {
+          const filePath = item.childPaths[i];
 
-      for (const filePath of item.childPaths) {
-        const content = files.get(filePath);
-        if (content) {
-          const fullPath = path.join(gitRoot, filePath);
-          await fs.mkdir(path.dirname(fullPath), { recursive: true });
-          await fs.writeFile(fullPath, content);
+          progress.report({
+            message: `Restoring folder: ${item.folderPath} (${i + 1}/${item.childPaths.length})`,
+            increment: (100 / item.childPaths.length)
+          });
+
+          try {
+            const content = await shadowGitService.getSnapshotFileContent(item.snapshotId, filePath);
+            if (content) {
+              const fullPath = path.join(gitRoot, filePath);
+              await fs.mkdir(path.dirname(fullPath), { recursive: true });
+              await fs.writeFile(fullPath, content);
+              restoredCount++;
+            }
+          } catch (error) {
+            // Continue with other files if one fails
+          }
         }
       }
-    }
-  );
+    );
 
-  vscode.window.showInformationMessage(`Folder restored: ${item.folderPath}`);
+    vscode.window.showInformationMessage(`Folder restored: ${item.folderPath} (${item.childPaths.length} files)`);
+  } catch (error) {
+    vscode.window.showErrorMessage(
+      `Failed to restore folder: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 };
 
 const deleteFolderItem = async (item: SnapshotFolderTreeItem): Promise<void> => {
