@@ -1,0 +1,25 @@
+package.json
+  8943626f488925a7 5
+CHANGELOG.md
+  8943626f488925a7 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "d1a40161bccc4787e72e38ae546a6a5925d9ae82",
+  "prompts": {
+    "8943626f488925a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fd88bfc8-d3e3-464a-ac66-26e933ac8a48",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "kururu <kururu6966@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
