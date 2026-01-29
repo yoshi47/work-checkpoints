@@ -4,7 +4,7 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [1.0.4] - 2026-01-27
+## [0.6.1] - 2026-01-29
 
 ### Fixed
 - Enhanced Git lock file handling in save-checkpoint.sh hook
