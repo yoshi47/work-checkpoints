@@ -130,6 +130,35 @@ Use the same checkpoint functionality in Claude Code. Automatically creates a ch
 
 - `/work-checkpoints:restore-checkpoint` - Restore a checkpoint
 
+## OpenCode Plugin
+
+Use the same checkpoint functionality in [OpenCode](https://opencode.ai/). Automatically creates a checkpoint every time you send a message.
+
+### Installation
+
+Copy the plugin file to your OpenCode plugin directory:
+
+```bash
+# Global (all projects)
+cp opencode-plugin/work-checkpoints.ts ~/.config/opencode/plugin/
+
+# Project-local
+cp opencode-plugin/work-checkpoints.ts .opencode/plugin/
+```
+
+### Features
+
+- **Auto-save**: Creates a checkpoint each time you send a message (`chat.message` hook)
+- **List checkpoints**: `list_checkpoints` tool to view all saved checkpoints
+- **Restore checkpoints**: `restore_checkpoint` tool to revert to a previous state
+- Shares the same shadow repository with the VSCode extension and Claude Code plugin
+- Git lock waiting and retry logic for stability
+
+### Requirements
+
+- [Bun](https://bun.sh/) runtime (used by OpenCode)
+- `@opencode-ai/plugin` package (installed in your OpenCode config directory)
+
 ## Requirements
 
 - Git must be installed and available in your PATH
