@@ -4,6 +4,15 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.7.0] - 2026-02-13
+
+### Added
+- OpenCode plugin for checkpoint functionality in [OpenCode](https://opencode.ai/)
+  - Auto-save snapshots on each message (`chat.message` hook)
+  - `list_checkpoints` and `restore_checkpoint` tools
+  - Shares the same shadow repository with VSCode extension and Claude Code plugin
+  - Git lock waiting and retry logic for stability
+
 ## [0.6.1] - 2026-01-29
 
 ### Fixed
