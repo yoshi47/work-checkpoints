@@ -3,5 +3,19 @@
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.1.3",
   "base_commit_sha": "397727cc862af5ba2d839480a987f112ab59e925",
-  "prompts": {}
+  "prompts": {
+    "bf60d1161f0e749e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3aa0b47c0ffeOwhwTPzLsGI8DU",
+        "model": "anthropic/claude-opus-4-6"
+      },
+      "human_author": "kururu <kururu6966@gmail.com>",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 1,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
 }
