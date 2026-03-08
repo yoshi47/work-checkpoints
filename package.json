@@ -285,6 +285,18 @@
           "group": "3_compare"
         }
       ],
+      "editor/context": [
+        {
+          "command": "work-checkpoints.showFileHistory",
+          "group": "3_compare"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "work-checkpoints.showFileHistory",
+          "group": "3_compare"
+        }
+      ],
       "view/item/context": [
         {
           "command": "work-checkpoints.toggleFavorite",
