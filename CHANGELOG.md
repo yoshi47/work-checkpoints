@@ -4,6 +4,16 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.8.0] - 2026-03-08
+
+### Added
+- File history view to browse checkpoint history for individual files
+- Context menu command to show file history from the editor
+- Diff display between snapshots for comparing changes over time
+
+### Fixed
+- Excluded opencode-plugin from TypeScript compilation
+
 ## [0.7.0] - 2026-02-13
 
 ### Added
