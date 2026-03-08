@@ -58,6 +58,30 @@ export const activate = (context: vscode.ExtensionContext) => {
   }
   vscode.commands.executeCommand('setContext', 'workCheckpoints.showClaudeSnapshots', savedShowClaude);
 
+  // Initialize context for commit diff mode
+  const setCommitDiffMode = (mode: boolean) => {
+    fileHistoryTreeProvider.setCommitDiffMode(mode);
+    vscode.commands.executeCommand('setContext', 'workCheckpoints.commitDiffMode', mode);
+    context.globalState.update('work-checkpoints.commitDiffMode', mode);
+  };
+  const savedCommitDiffMode = context.globalState.get('work-checkpoints.commitDiffMode', false);
+  fileHistoryTreeProvider.setCommitDiffMode(savedCommitDiffMode);
+  vscode.commands.executeCommand('setContext', 'workCheckpoints.commitDiffMode', savedCommitDiffMode);
+
+  // Initialize context for settings button visibility
+  const showSettingsButton = vscode.workspace.getConfiguration('work-checkpoints').get('showSettingsButton', false);
+  vscode.commands.executeCommand('setContext', 'workCheckpoints.showSettingsButton', showSettingsButton);
+
+  // Update settings button visibility when configuration changes
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('work-checkpoints.showSettingsButton')) {
+        const show = vscode.workspace.getConfiguration('work-checkpoints').get('showSettingsButton', false);
+        vscode.commands.executeCommand('setContext', 'workCheckpoints.showSettingsButton', show);
+      }
+    })
+  );
+
   // Register WebView provider for input
   const snapshotInputViewProvider = new SnapshotInputViewProvider(context.extensionUri);
   context.subscriptions.push(
@@ -169,6 +193,12 @@ export const activate = (context: vscode.ExtensionContext) => {
     }),
     vscode.commands.registerCommand('work-checkpoints.showFileHistory', async (uri?: vscode.Uri) => {
       await showFileHistory(uri);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.diffCommitChanges', () => {
+      setCommitDiffMode(true);
+    }),
+    vscode.commands.registerCommand('work-checkpoints.diffWithCurrent', () => {
+      setCommitDiffMode(false);
     }),
   );
 
@@ -385,28 +415,56 @@ const deleteAllSnapshots = async (): Promise<void> => {
 };
 
 const showFileDiff = async (item: SnapshotFileTreeItem): Promise<void> => {
-  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+  try {
+    const shadowGitService = snapshotTreeProvider.getShadowGitService();
+    const workspaceService = snapshotTreeProvider.getWorkspaceService();
 
-  if (!workspaceService) {
-    vscode.window.showErrorMessage('No Git repository found in workspace.');
-    return;
+    if (!shadowGitService || !workspaceService) {
+      vscode.window.showErrorMessage('No Git repository found in workspace.');
+      return;
+    }
+
+    const gitRoot = await workspaceService.getGitRoot();
+    if (!gitRoot) {
+      vscode.window.showErrorMessage('No Git repository found in workspace.');
+      return;
+    }
+
+    const snapshotUri = SnapshotContentProvider.createUri(item.snapshotId, item.filePath);
+
+    if (fileHistoryTreeProvider.getCommitDiffMode()) {
+      // Use getFileHistory for chronological order (listSnapshots reorders favorites to top)
+      const snapshots = await shadowGitService.getFileHistory(item.filePath);
+      const index = snapshots.findIndex((s) => s.id === item.snapshotId);
+      if (index < 0) {
+        vscode.window.showErrorMessage('Snapshot not found in file history.');
+        return;
+      }
+      const parentSnapshotId = index < snapshots.length - 1
+        ? snapshots[index + 1].id
+        : null;
+      const parentUri = parentSnapshotId
+        ? SnapshotContentProvider.createUri(parentSnapshotId, item.filePath)
+        : SnapshotContentProvider.createUri(SnapshotContentProvider.EMPTY_SNAPSHOT_ID, item.filePath);
+
+      const snapshot = snapshots[index];
+      const label = `${item.filePath} (${snapshot.description})`;
+
+      await vscode.commands.executeCommand('vscode.diff', parentUri, snapshotUri, label);
+    } else {
+      const currentFileUri = vscode.Uri.file(path.join(gitRoot, item.filePath));
+      await vscode.commands.executeCommand(
+        'vscode.diff',
+        snapshotUri,
+        currentFileUri,
+        `${item.filePath} (Snapshot vs Current)`
+      );
+    }
+  } catch (error) {
+    vscode.window.showErrorMessage(
+      `Failed to show diff: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
-
-  const gitRoot = await workspaceService.getGitRoot();
-  if (!gitRoot) {
-    vscode.window.showErrorMessage('No Git repository found in workspace.');
-    return;
-  }
-
-  const snapshotUri = SnapshotContentProvider.createUri(item.snapshotId, item.filePath);
-  const currentFileUri = vscode.Uri.file(path.join(gitRoot, item.filePath));
-
-  await vscode.commands.executeCommand(
-    'vscode.diff',
-    snapshotUri,
-    currentFileUri,
-    `${item.filePath} (Snapshot vs Current)`
-  );
 };
 
 const restoreFileItem = async (item: SnapshotFileTreeItem): Promise<void> => {
