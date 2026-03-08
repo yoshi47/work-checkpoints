@@ -151,6 +151,16 @@
         "command": "work-checkpoints.showFileHistory",
         "title": "Work Checkpoints: Show File History",
         "icon": "$(history)"
+      },
+      {
+        "command": "work-checkpoints.diffWithCurrent",
+        "title": "Compare with Current",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "work-checkpoints.diffCommitChanges",
+        "title": "Show Commit Changes",
+        "icon": "$(git-compare)"
       }
     ],
     "viewsContainers": {
@@ -211,6 +221,11 @@
           "default": [],
           "description": "Additional patterns to ignore when creating snapshots (gitignore format)"
         },
+        "work-checkpoints.showSettingsButton": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show 'Open Settings' button in the Snapshots panel toolbar"
+        },
         "work-checkpoints.retentionDays": {
           "type": "number",
           "default": 0,
@@ -222,6 +237,16 @@
     },
     "menus": {
       "view/title": [
+        {
+          "command": "work-checkpoints.diffCommitChanges",
+          "when": "(view == workCheckpointsView || view == workCheckpointsFileHistory) && !workCheckpoints.commitDiffMode",
+          "group": "navigation@0"
+        },
+        {
+          "command": "work-checkpoints.diffWithCurrent",
+          "when": "(view == workCheckpointsView || view == workCheckpointsFileHistory) && workCheckpoints.commitDiffMode",
+          "group": "navigation@0"
+        },
         {
           "command": "work-checkpoints.groupByBranch",
           "when": "view == workCheckpointsView && !workCheckpoints.groupByBranch",
@@ -274,7 +299,7 @@
         },
         {
           "command": "work-checkpoints.openSettings",
-          "when": "view == workCheckpointsView",
+          "when": "view == workCheckpointsView && workCheckpoints.showSettingsButton",
           "group": "navigation@4"
         }
       ],
