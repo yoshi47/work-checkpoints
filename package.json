@@ -146,6 +146,11 @@
         "command": "work-checkpoints.openSettings",
         "title": "Open Settings",
         "icon": "$(gear)"
+      },
+      {
+        "command": "work-checkpoints.showFileHistory",
+        "title": "Work Checkpoints: Show File History",
+        "icon": "$(history)"
       }
     ],
     "viewsContainers": {
@@ -167,9 +172,19 @@
         {
           "id": "workCheckpointsView",
           "name": "Snapshots"
+        },
+        {
+          "id": "workCheckpointsFileHistory",
+          "name": "File History"
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "workCheckpointsFileHistory",
+        "contents": "Right-click a file in Explorer and select \"Work Checkpoints: Show File History\" to view its checkpoint history."
+      }
+    ],
     "configuration": {
       "title": "Work Checkpoints",
       "properties": {
@@ -261,6 +276,13 @@
           "command": "work-checkpoints.openSettings",
           "when": "view == workCheckpointsView",
           "group": "navigation@4"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "work-checkpoints.showFileHistory",
+          "when": "!explorerResourceIsFolder",
+          "group": "3_compare"
         }
       ],
       "view/item/context": [

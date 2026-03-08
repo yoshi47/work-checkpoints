@@ -195,6 +195,12 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     return this.showClaudeSnapshots;
   }
 
+  async ensureInitialized(): Promise<void> {
+    if (!this.shadowGitService) {
+      await this.initializeServices();
+    }
+  }
+
   private async initializeServices(): Promise<void> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
