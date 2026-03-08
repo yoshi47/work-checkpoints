@@ -247,24 +247,11 @@ export class ShadowGitService {
       const log = await this.retryGitOperation(async () => {
         return await git.log({ maxCount: 100 });
       });
-      const deletedIds = await this.getDeletedIds();
-      const renamedMap = await this.getRenamedMap();
-      const favoriteIds = await this.getFavoriteIds();
-
-      const snapshots = log.all
-        .map((commit) => this.parseCommitMetadata(commit))
-        .filter((snapshot) => !deletedIds.has(snapshot.id))
-        .map((snapshot) => {
-          const renamedDescription = renamedMap.get(snapshot.id);
-          const isFavorite = favoriteIds.has(snapshot.id);
-          if (renamedDescription) {
-            return { ...snapshot, description: renamedDescription, isFavorite };
-          }
-          return { ...snapshot, isFavorite };
-        });
+      const snapshots = log.all.map((commit) => this.parseCommitMetadata(commit));
+      const result = await this.applySnapshotOverrides(snapshots);
 
       // Sort favorites to the top
-      return snapshots.sort((a, b) => {
+      return result.sort((a, b) => {
         if (a.isFavorite && !b.isFavorite) {
           return -1;
         }
@@ -447,6 +434,80 @@ export class ShadowGitService {
     } else {
       await this.addFavoriteId(id);
       return true;
+    }
+  };
+
+  private applySnapshotOverrides = async (
+    snapshots: SnapshotMetadata[]
+  ): Promise<SnapshotMetadata[]> => {
+    const deletedIds = await this.getDeletedIds();
+    const renamedMap = await this.getRenamedMap();
+    const favoriteIds = await this.getFavoriteIds();
+
+    return snapshots
+      .filter((s) => !deletedIds.has(s.id))
+      .map((s) => ({
+        ...s,
+        description: renamedMap.get(s.id) ?? s.description,
+        isFavorite: favoriteIds.has(s.id),
+      }));
+  };
+
+  getFileHistory = async (filePath: string): Promise<SnapshotMetadata[]> => {
+    try {
+      await fs.access(path.join(this.config.shadowRepoPath, '.git'));
+    } catch {
+      return [];
+    }
+
+    try {
+      const git = this.getGit();
+      const logOutput = await this.retryGitOperation(async () => {
+        return await git.raw([
+          'log',
+          '--all',
+          '--follow',
+          '--format=%H%n%s%n%b--DATE--%n%aI%n---END---',
+          '--',
+          filePath,
+        ]);
+      });
+
+      if (!logOutput.trim()) {
+        return [];
+      }
+
+      const commits = logOutput.split('---END---\n').filter((block) => block.trim());
+      const snapshots: SnapshotMetadata[] = [];
+
+      for (const block of commits) {
+        const dateMarkerIdx = block.lastIndexOf('--DATE--\n');
+        if (dateMarkerIdx === -1) {
+          continue;
+        }
+
+        const beforeDate = block.substring(0, dateMarkerIdx);
+        const afterDate = block.substring(dateMarkerIdx + '--DATE--\n'.length).trim();
+
+        const headerLines = beforeDate.trim().split('\n');
+        if (headerLines.length < 2) {
+          continue;
+        }
+
+        const hash = headerLines[0];
+        const message = headerLines[1];
+        const body = headerLines.slice(2).join('\n').trim();
+        const date = afterDate;
+
+        const commit = { hash, message, body, date };
+        const snapshot = this.parseCommitMetadata(commit);
+        snapshots.push(snapshot);
+      }
+
+      return await this.applySnapshotOverrides(snapshots);
+    } catch (error) {
+      console.error(`[getFileHistory] Error getting file history for ${filePath}:`, error);
+      return [];
     }
   };
 

@@ -8,10 +8,12 @@ import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem, SnapshotF
 import { SnapshotInputViewProvider } from './views/snapshotInputViewProvider';
 import { SnapshotContentProvider } from './providers/snapshotContentProvider';
 import { AutoCleanupService } from './services/autoCleanupService';
+import { FileHistoryTreeProvider } from './views/fileHistoryTreeProvider';
 
 let snapshotTreeProvider: SnapshotTreeProvider;
 let snapshotContentProvider: SnapshotContentProvider;
 let autoCleanupService: AutoCleanupService;
+let fileHistoryTreeProvider: FileHistoryTreeProvider;
 
 export const activate = (context: vscode.ExtensionContext) => {
   console.log('Work Checkpoints extension is now active!');
@@ -29,6 +31,13 @@ export const activate = (context: vscode.ExtensionContext) => {
   snapshotTreeProvider = new SnapshotTreeProvider(snapshotContentProvider);
   const treeView = vscode.window.createTreeView('workCheckpointsView', {
     treeDataProvider: snapshotTreeProvider,
+    showCollapseAll: false,
+  });
+
+  // Create and register File History TreeView
+  fileHistoryTreeProvider = new FileHistoryTreeProvider();
+  const fileHistoryTreeView = vscode.window.createTreeView('workCheckpointsFileHistory', {
+    treeDataProvider: fileHistoryTreeProvider,
     showCollapseAll: false,
   });
 
@@ -65,6 +74,7 @@ export const activate = (context: vscode.ExtensionContext) => {
   // Register commands
   context.subscriptions.push(
     treeView,
+    fileHistoryTreeView,
     vscode.commands.registerCommand('work-checkpoints.saveSnapshot', async () => {
       await saveSnapshot();
       snapshotTreeProvider.refresh();
@@ -156,7 +166,10 @@ export const activate = (context: vscode.ExtensionContext) => {
     }),
     vscode.commands.registerCommand('work-checkpoints.openSettings', () => {
       vscode.commands.executeCommand('workbench.action.openSettings', '@ext:kururu6966.work-checkpoints');
-    })
+    }),
+    vscode.commands.registerCommand('work-checkpoints.showFileHistory', async (uri?: vscode.Uri) => {
+      await showFileHistory(uri);
+    }),
   );
 
   // Refresh when workspace changes
@@ -165,6 +178,51 @@ export const activate = (context: vscode.ExtensionContext) => {
       snapshotTreeProvider.refresh();
     })
   );
+
+  // Auto-update file history when active editor changes
+  let fileHistoryDebounceTimer: NodeJS.Timeout | undefined;
+  let lastFileHistoryPath: string | undefined;
+
+  const updateFileHistoryForEditor = (editor: vscode.TextEditor | undefined) => {
+    if (fileHistoryDebounceTimer) {
+      clearTimeout(fileHistoryDebounceTimer);
+    }
+    fileHistoryDebounceTimer = setTimeout(async () => {
+      try {
+        if (!editor || editor.document.uri.scheme !== 'file') {
+          return;
+        }
+
+        const ctx = await resolveFileContext(editor.document.uri);
+        if (!ctx) {
+          return;
+        }
+
+        if (lastFileHistoryPath === ctx.relativePath) {
+          return;
+        }
+        lastFileHistoryPath = ctx.relativePath;
+
+        const snapshots = await ctx.shadowGitService.getFileHistory(ctx.relativePath);
+        fileHistoryTreeProvider.setFile(ctx.relativePath, ctx.gitRoot, snapshots);
+      } catch (error) {
+        console.error('[updateFileHistoryForEditor] Failed to update file history:', error);
+      }
+    }, 300);
+  };
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(updateFileHistoryForEditor)
+  );
+
+  // Show history for the current active editor on activation
+  if (vscode.window.activeTextEditor) {
+    snapshotTreeProvider.ensureInitialized().then(() => {
+      updateFileHistoryForEditor(vscode.window.activeTextEditor);
+    }).catch((error) => {
+      console.error('[activate] Failed to initialize file history:', error);
+    });
+  }
 };
 
 
@@ -548,6 +606,50 @@ const deleteFolderItem = async (item: SnapshotFolderTreeItem): Promise<void> => 
 
   await fs.rm(fullPath, { recursive: true });
   vscode.window.showInformationMessage(`Folder deleted: ${item.folderPath}`);
+};
+
+const resolveFileContext = async (fileUri: vscode.Uri) => {
+  const shadowGitService = snapshotTreeProvider.getShadowGitService();
+  const workspaceService = snapshotTreeProvider.getWorkspaceService();
+  if (!shadowGitService || !workspaceService) {
+    return null;
+  }
+
+  const gitRoot = await workspaceService.getGitRoot();
+  if (!gitRoot) {
+    return null;
+  }
+
+  const relativePath = path.relative(gitRoot, fileUri.fsPath);
+  if (relativePath.startsWith('..')) {
+    return null;
+  }
+
+  return { shadowGitService, gitRoot, relativePath };
+};
+
+const showFileHistory = async (uri?: vscode.Uri): Promise<void> => {
+  const fileUri = uri || vscode.window.activeTextEditor?.document.uri;
+  if (!fileUri || fileUri.scheme !== 'file') {
+    vscode.window.showErrorMessage('No file selected.');
+    return;
+  }
+
+  const ctx = await resolveFileContext(fileUri);
+  if (!ctx) {
+    vscode.window.showErrorMessage('No Git repository found in workspace.');
+    return;
+  }
+
+  const snapshots = await ctx.shadowGitService.getFileHistory(ctx.relativePath);
+
+  if (snapshots.length === 0) {
+    vscode.window.showInformationMessage(`No checkpoint history found for ${ctx.relativePath}`);
+    return;
+  }
+
+  fileHistoryTreeProvider.setFile(ctx.relativePath, ctx.gitRoot, snapshots);
+  vscode.commands.executeCommand('workCheckpointsFileHistory.focus');
 };
 
 export const deactivate = () => {
