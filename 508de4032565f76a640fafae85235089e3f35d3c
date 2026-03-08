@@ -1,0 +1,62 @@
+src/services/shadowGitService.ts
+  21e1b1e199781456 250-251,254,440-442,446-455,470,484-485,489-490,492-493,497-500,502-503,507-509
+  50833a2f842fdddd 443-445,456-469,471-483,486-488,491,494-496,501,504-506,510-513
+src/views/snapshotTreeProvider.ts
+  ef9a5c451871b5c4 198-203
+src/extension.ts
+  50833a2f842fdddd 169-171,612-614,616-619,626,630,632-637,641-643,645,648-650,653-654
+  ef9a5c451871b5c4 11,16,37-43,77,172,181-182,185,189,195,198-200,202-203,205,212-221,224-225,646,652
+  21e1b1e199781456 183-184,186-188,190-194,196-197,201,204,206-211,222-223,611,615,620-625,627-629,631,638-640,644,647,651
+src/views/fileHistoryTreeProvider.ts
+  21e1b1e199781456 44,47,56
+  ef9a5c451871b5c4 1-43,45-46,48-55,57-65
+package.json
+  50833a2f842fdddd 149-153,281-287
+  ef9a5c451871b5c4 175-178,182-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "508de4032565f76a640fafae85235089e3f35d3c",
+  "prompts": {
+    "21e1b1e199781456": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f90028d9-36d5-4bc5-a51d-4445c94b910e",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 86,
+      "total_deletions": 74,
+      "accepted_lines": 75,
+      "overriden_lines": 0
+    },
+    "50833a2f842fdddd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ed1610f9-2987-4e06-9d44-732813ce5c02",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 147,
+      "total_deletions": 0,
+      "accepted_lines": 84,
+      "overriden_lines": 0
+    },
+    "ef9a5c451871b5c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "14327372-8d93-447a-9af8-cdb1970baa2a",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 160,
+      "total_deletions": 62,
+      "accepted_lines": 116,
+      "overriden_lines": 0
+    }
+  }
+}
