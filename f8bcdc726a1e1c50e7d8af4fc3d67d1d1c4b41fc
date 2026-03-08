@@ -1,45 +1,7 @@
-package.json
-  0ca7d4fd9db77735 154-163,224-228,241-249,302
-src/views/fileHistoryTreeProvider.ts
-  0ca7d4fd9db77735 10,24,26,30-32,34-35,37-40,42,53,62-66,81-86
-  ab79f433c3ad3ab5 11,25,33,36,67-70
-src/providers/snapshotContentProvider.ts
-  0ca7d4fd9db77735 27
-  ab79f433c3ad3ab5 6,20,24,28
-src/extension.ts
-  ab79f433c3ad3ab5 62-66,418,435-443,448,450-451,461-465
-  0ca7d4fd9db77735 61,67-84,197-202,419,422,444-447,449,452-454,467
 ---
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.1.8",
   "base_commit_sha": "f8bcdc726a1e1c50e7d8af4fc3d67d1d1c4b41fc",
-  "prompts": {
-    "0ca7d4fd9db77735": {
-      "agent_id": {
-        "tool": "claude",
-        "id": "8599c773-9322-45e8-9c49-551c065f754f",
-        "model": "claude-opus-4-6"
-      },
-      "human_author": "yoshi47 <yoshix47@gmail.com>",
-      "messages": [],
-      "total_additions": 140,
-      "total_deletions": 39,
-      "accepted_lines": 93,
-      "overriden_lines": 0
-    },
-    "ab79f433c3ad3ab5": {
-      "agent_id": {
-        "tool": "claude",
-        "id": "4e5b2072-d512-4f9b-8e63-b0de44ebbe02",
-        "model": "claude-opus-4-6"
-      },
-      "human_author": "yoshi47 <yoshix47@gmail.com>",
-      "messages": [],
-      "total_additions": 61,
-      "total_deletions": 54,
-      "accepted_lines": 35,
-      "overriden_lines": 0
-    }
-  }
+  "prompts": {}
 }
