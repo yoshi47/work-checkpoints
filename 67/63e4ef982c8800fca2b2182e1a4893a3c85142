@@ -1,0 +1,27 @@
+package.json
+  19a52809d3e89271 5
+CHANGELOG.md
+  19a52809d3e89271 7-16
+README.md
+  19a52809d3e89271 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "6763e4ef982c8800fca2b2182e1a4893a3c85142",
+  "prompts": {
+    "19a52809d3e89271": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1dd63d3e-1ec8-4aa9-ad9f-2adf318973aa",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 1,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    }
+  }
+}
