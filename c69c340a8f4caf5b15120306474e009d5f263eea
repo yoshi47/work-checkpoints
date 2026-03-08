@@ -1,0 +1,23 @@
+package.json
+  05192de5a73b977f 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.8",
+  "base_commit_sha": "c69c340a8f4caf5b15120306474e009d5f263eea",
+  "prompts": {
+    "05192de5a73b977f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9248b7b6-5e88-44ef-8091-1f558db0e3a8",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
