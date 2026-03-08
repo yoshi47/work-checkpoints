@@ -12,6 +12,7 @@ Save and restore work snapshots using a shadow Git repository. Perfect for exper
 - **Folder Operations**: Restore or delete entire folders
 - **Rename Snapshots**: Give meaningful names to your checkpoints
 - **Branch Grouping**: Organize snapshots by branch for better management
+- **File History**: Browse checkpoint history for individual files with diff comparison
 - **Claude Snapshot Management**: Toggle visibility and delete Claude-created snapshots individually
 - **Activity Bar Integration**: Quick access from the sidebar
 - **Command Palette Support**: All commands available via `Cmd+Shift+P`
