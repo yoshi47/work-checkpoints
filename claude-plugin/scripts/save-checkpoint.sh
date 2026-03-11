@@ -65,7 +65,7 @@ safe_git_add() {
   local repo="$1"
   for i in 1 2 3; do
     wait_for_git_lock "$repo" || return 1
-    git -C "$repo" add -A 2>/dev/null && return 0
+    git -C "$repo" add -A && return 0
     sleep 0.3
   done
   return 1
@@ -77,8 +77,8 @@ safe_git_commit() {
   local message="$2"
   for i in 1 2 3; do
     wait_for_git_lock "$repo" || return 1
-    git -C "$repo" diff --cached --quiet 2>/dev/null && return 0
-    git -C "$repo" commit -m "$message" 2>/dev/null && return 0
+    git -C "$repo" diff --cached --quiet && return 0
+    printf '%s' "$message" | git -C "$repo" commit -F - && return 0
     sleep 0.3
   done
   return 1
