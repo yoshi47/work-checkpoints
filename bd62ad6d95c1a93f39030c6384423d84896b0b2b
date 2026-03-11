@@ -1,0 +1,38 @@
+claude-plugin/scripts/save-checkpoint.sh
+  a293fe32c01c1da7 81
+.claude-plugin/marketplace.json
+  1b1b5521fb32b699 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.10",
+  "base_commit_sha": "bd62ad6d95c1a93f39030c6384423d84896b0b2b",
+  "prompts": {
+    "1b1b5521fb32b699": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c42d11ab-61f1-4796-b260-31c90b0e6fc2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "a293fe32c01c1da7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd358a30-cc30-402c-aa18-97ee9197e4a2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
