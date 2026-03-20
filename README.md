@@ -118,7 +118,7 @@ Use the same checkpoint functionality in Claude Code. Automatically creates a ch
 /plugin marketplace add yoshi47/work-checkpoints
 
 # Install plugin
-/plugin install work-checkpoints
+/plugin install work-checkpoints@work-checkpoints-plugin
 ```
 
 ### Features
