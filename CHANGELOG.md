@@ -4,6 +4,17 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.0.4] - 2026-03-20
+
+### Changed
+- Unified version across package.json and .claude-plugin/marketplace.json to 1.0.4
+- Updated owner information and simplified plugin name
+- Improved checkpoint save script: removed stderr redirect, use stdin for commit messages
+
+### Security
+- Bumped undici to address vulnerability (dependabot)
+- Bumped npm_and_yarn group dependencies
+
 ## [0.8.0] - 2026-03-08
 
 ### Added
