@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.15",
+  "base_commit_sha": "04daaa32d80f42202c75ff7f3ebfa222d8d41106",
+  "prompts": {
+    "1b1b5521fb32b699": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c42d11ab-61f1-4796-b260-31c90b0e6fc2",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
