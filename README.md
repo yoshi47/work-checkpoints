@@ -115,10 +115,10 @@ Use the same checkpoint functionality in Claude Code. Automatically creates a ch
 
 ```bash
 # Add marketplace
-/plugin marketplace add kururu6966/work-checkpoints
+/plugin marketplace add yoshi47/work-checkpoints
 
 # Install plugin
-/plugin install work-checkpoints@work-checkpoints-plugin
+/plugin install work-checkpoints
 ```
 
 ### Features

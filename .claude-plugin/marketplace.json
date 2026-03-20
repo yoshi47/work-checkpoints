@@ -1,7 +1,8 @@
 {
-  "name": "work-checkpoints-plugin",
+  "name": "work-checkpoints",
   "owner": {
-    "name": "kururu6966"
+    "name": "yoshi47",
+    "url": "https://github.com/yoshi47"
   },
   "plugins": [
     {
@@ -10,7 +11,8 @@
       "description": "Automatically save work checkpoints when sending messages",
       "version": "1.0.4",
       "author": {
-        "name": "kururu6966"
+        "name": "yoshi47",
+        "url": "https://github.com/yoshi47"
       },
       "category": "productivity"
     }
