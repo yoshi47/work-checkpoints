@@ -1,27 +1,7 @@
-claude-plugin/scripts/save-checkpoint.sh
-  c01f495fc843fcbb 3-4,29-83,85-179,181-185,187-192,195-197,199-219
-src/services/shadowGitService.ts
-  c01f495fc843fcbb 514-520
-src/services/autoCleanupService.ts
-  c01f495fc843fcbb 28,30,34-35,37-45,48,50,52
 ---
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.1.19",
   "base_commit_sha": "73f215aadee1e0f7b3ead111e1e25ad7e6bb0bc0",
-  "prompts": {
-    "c01f495fc843fcbb": {
-      "agent_id": {
-        "tool": "claude",
-        "id": "b8268bb7-48cb-49ac-9758-b7ed23f7621e",
-        "model": "claude-opus-4-6"
-      },
-      "human_author": "yoshi47 <yoshix47@gmail.com>",
-      "messages": [],
-      "total_additions": 218,
-      "total_deletions": 125,
-      "accepted_lines": 212,
-      "overriden_lines": 0
-    }
-  }
+  "prompts": {}
 }
