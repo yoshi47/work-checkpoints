@@ -25,26 +25,31 @@ export class AutoCleanupService {
   };
 
   private runCleanup = async (): Promise<void> => {
-    const config = vscode.workspace.getConfiguration('work-checkpoints');
-    const retentionDays = config.get<number>('retentionDays', 0);
-
-    if (retentionDays <= 0) {
-      return;
-    }
-
     const shadowGitService = this.getShadowGitService();
 
     if (!shadowGitService) {
       return;
     }
 
-    try {
-      const deletedCount = await shadowGitService.deleteOldSnapshots(retentionDays);
-      if (deletedCount > 0) {
-        console.log(`Auto-cleanup: Deleted ${deletedCount} old snapshot(s)`);
+    const config = vscode.workspace.getConfiguration('work-checkpoints');
+    const retentionDays = config.get<number>('retentionDays', 0);
+
+    if (retentionDays > 0) {
+      try {
+        const deletedCount = await shadowGitService.deleteOldSnapshots(retentionDays);
+        if (deletedCount > 0) {
+          console.log(`Auto-cleanup: Deleted ${deletedCount} old snapshot(s)`);
+        }
+      } catch (error) {
+        console.error('Auto-cleanup failed:', error);
       }
+    }
+
+    // retentionDays に関わらず gc は実行（リポ肥大化防止）
+    try {
+      await shadowGitService.runGc();
     } catch (error) {
-      console.error('Auto-cleanup failed:', error);
+      console.error('Auto gc failed:', error);
     }
   };
 }

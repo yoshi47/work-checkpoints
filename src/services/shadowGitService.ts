@@ -511,6 +511,13 @@ export class ShadowGitService {
     }
   };
 
+  runGc = async (): Promise<void> => {
+    const git = this.getGit();
+    await this.retryGitOperation(async () => {
+      await git.raw(['gc', '--auto', '--quiet']);
+    });
+  };
+
   deleteOldSnapshots = async (retentionDays: number): Promise<number> => {
     const snapshots = await this.listSnapshots();
     const now = new Date();

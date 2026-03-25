@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 何があっても正常終了してユーザー操作をブロックしない
-trap 'exit 0' EXIT ERR
+# === フォアグラウンド: stdin 読み取りとパス計算 (高速、<50ms) ===
+# エラー時も正常終了してユーザー操作をブロックしない
 
 # stdinからJSONを読み取り、プロンプトを抽出
 INPUT=$(cat)
@@ -10,79 +10,6 @@ if command -v jq &> /dev/null; then
 else
   USER_PROMPT=$(echo "$INPUT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('prompt', '')[:500])" 2>/dev/null)
 fi
-
-# 古いロックファイルを削除する関数（60秒以上古い場合）
-remove_stale_lock() {
-  local lock_file="$1"
-  if [ -f "$lock_file" ]; then
-    # ロックファイルが60秒以上前のものか確認
-    if [ "$(uname)" = "Darwin" ]; then
-      # macOS
-      local file_time=$(stat -f %m "$lock_file" 2>/dev/null || echo 0)
-    else
-      # Linux
-      local file_time=$(stat -c %Y "$lock_file" 2>/dev/null || echo 0)
-    fi
-    local current_time=$(date +%s)
-    local age=$((current_time - file_time))
-
-    # 60秒以上古い場合は削除
-    if [ "$age" -gt 60 ]; then
-      rm -f "$lock_file" 2>/dev/null
-      return 0
-    fi
-  fi
-  return 1
-}
-
-# Gitロック待機関数（最大3秒）
-wait_for_git_lock() {
-  local repo="$1"
-  local lock_file="$repo/.git/index.lock"
-  local config_lock="$repo/.git/config.lock"
-
-  # 古いロックファイルを削除
-  remove_stale_lock "$lock_file"
-  remove_stale_lock "$config_lock"
-
-  # 短時間待機
-  local i=0
-  while [ -f "$lock_file" ] && [ "$i" -lt 6 ]; do
-    sleep 0.5
-    i=$((i + 1))
-  done
-
-  # まだロックファイルが残っていれば再度削除を試みる
-  if [ -f "$lock_file" ]; then
-    remove_stale_lock "$lock_file"
-  fi
-
-  [ ! -f "$lock_file" ]
-}
-
-# リトライ付きgit add（最大3回）
-safe_git_add() {
-  local repo="$1"
-  for i in 1 2 3; do
-    wait_for_git_lock "$repo" || return 1
-    git -C "$repo" add -A && return 0
-    sleep 0.3
-  done
-  return 1
-}
-
-# リトライ付きgit commit（最大3回）
-safe_git_commit() {
-  local repo="$1"
-  local message="$2"
-  for i in 1 2 3; do
-    wait_for_git_lock "$repo" || return 1
-    git -C "$repo" diff --cached --quiet && return 0
-    printf '%s' "$message" | git -C "$repo" commit -F - && return 0
-    sleep 0.3
-  done
-  return 1
-}
 
 # シャドウリポジトリのパスを計算
 WORKSPACE_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -99,42 +26,196 @@ fi
 
 SHADOW_REPO="$HOME/.work-checkpoints/$REPO_ID"
 LOG_FILE="$SHADOW_REPO/checkpoint.log"
+mkdir -p "$SHADOW_REPO" || exit 0
 
-# エラーをログファイルにリダイレクト（デバッグ用）
-mkdir -p "$SHADOW_REPO"
-exec 2>>"$LOG_FILE"
+# === バックグラウンド: git 操作をフォークして即座にフォアグラウンドを返す ===
+(
+  # 親シェルの ERR trap を解除（サブシェル内では不要、デバッグ情報のマスク防止）
+  trap - ERR
 
-# シャドウリポジトリの初期化（必要な場合）
-if [ ! -d "$SHADOW_REPO/.git" ]; then
-  git -C "$SHADOW_REPO" init
-  git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"
-  git -C "$SHADOW_REPO" config user.email "work-checkpoints@local"
-  git -C "$SHADOW_REPO" config user.name "Work Checkpoints"
-  git -C "$SHADOW_REPO" config core.quotepath false
-  git -C "$SHADOW_REPO" config i18n.commitencoding utf-8
-  git -C "$SHADOW_REPO" config i18n.logoutputencoding utf-8
-fi
+  # stdout は /dev/null、stderr はログファイルへリダイレクト。
+  # 意図的にデバッグ出力を抑制している。デバッグ時は exec >/dev/null をコメントアウトして使う。
+  exec >/dev/null 2>>"$LOG_FILE"
 
-# core.worktreeを更新
-git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"
+  # --- mkdir ベースの排他ロック ---
+  # flock は macOS 標準では使えないため、mkdir のアトミック性を利用。
+  LOCK_DIR="$SHADOW_REPO/.checkpoint.lock"
 
-# スナップショット作成
-BRANCH=$(git -C "$WORKSPACE_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-TIMESTAMP=$(date "+%Y/%m/%d %H:%M:%S")
-TITLE="[Claude] $BRANCH @ $TIMESTAMP"
-if [ -n "$USER_PROMPT" ]; then
-  MESSAGE="$TITLE
+  acquire_lock() {
+    local timeout=10
+    local i=0
+    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+      # 60秒以上古いロックは異常終了の残骸とみなして削除
+      if [ -d "$LOCK_DIR" ]; then
+        if [ "$(uname)" = "Darwin" ]; then
+          local lock_time=$(stat -f %m "$LOCK_DIR" 2>/dev/null || echo 0)
+        else
+          local lock_time=$(stat -c %Y "$LOCK_DIR" 2>/dev/null || echo 0)
+        fi
+        local age=$(( $(date +%s) - lock_time ))
+        if [ "$age" -gt 60 ]; then
+          rm -rf "$LOCK_DIR" 2>/dev/null
+          continue
+        fi
+      fi
+      sleep 0.5
+      i=$((i + 1))
+      # タイムアウト: ロック取得失敗時はスキップ（ゾンビ化防止）
+      if [ "$i" -ge $((timeout * 2)) ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - Lock timeout, skipping checkpoint" >&2
+        return 1
+      fi
+    done
+    # サブシェル終了時にロック自動解放
+    trap "rm -rf '$LOCK_DIR'" EXIT
+    return 0
+  }
+
+  acquire_lock || exit 0
+
+  # --- デバウンス: 高速連打の抑制 ---
+  # 最後のコミットから5秒未満ならスキップ。
+  # 目的: 同一プロンプトの連打・即座の修正送信の重複防止。通常の作業間隔(1-2分)は影響なし。
+  LAST_COMMIT_TIME=$(git -C "$SHADOW_REPO" log -1 --format=%ct 2>/dev/null || echo 0)
+  CURRENT_TIME=$(date +%s)
+  if [ $((CURRENT_TIME - LAST_COMMIT_TIME)) -lt 5 ]; then
+    exit 0
+  fi
+
+  # --- シャドウリポジトリの初期化（必要な場合） ---
+  if [ ! -d "$SHADOW_REPO/.git" ]; then
+    if ! git -C "$SHADOW_REPO" init; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - git init failed for $SHADOW_REPO" >&2
+      exit 0
+    fi
+    git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"
+    git -C "$SHADOW_REPO" config user.email "work-checkpoints@local"
+    git -C "$SHADOW_REPO" config user.name "Work Checkpoints"
+    git -C "$SHADOW_REPO" config core.quotepath false
+    git -C "$SHADOW_REPO" config i18n.commitencoding utf-8
+    git -C "$SHADOW_REPO" config i18n.logoutputencoding utf-8
+
+    # fsmonitor と untrackedCache を有効化（大規模リポのスキャン高速化）
+    git -C "$SHADOW_REPO" config core.fsmonitor true
+    git -C "$SHADOW_REPO" config core.untrackedcache true
+
+    # gc 設定（リポ肥大化防止）
+    git -C "$SHADOW_REPO" config gc.auto 100
+    git -C "$SHADOW_REPO" config gc.autoPackLimit 4
+    git -C "$SHADOW_REPO" config gc.pruneExpire "2.weeks.ago"
+
+    # exclude パターン設定（デフォルトのみ。ユーザー追加パターンは VS Code 拡張の
+    # writeExcludePatterns() が次回起動時に上書き反映する）
+    # KEEP IN SYNC WITH src/utils/excludes.ts getDefaultExcludePatterns()
+    EXCLUDE_DIR="$SHADOW_REPO/.git/info"
+    mkdir -p "$EXCLUDE_DIR"
+    cat > "$EXCLUDE_DIR/exclude" << 'EXCLUDE_EOF'
+# Build artifacts
+node_modules/
+dist/
+build/
+.next/
+out/
+.nuxt/
+coverage/
+.turbo/
+.vercel/
+__pycache__/
+*.pyc
+target/
+vendor/
+# Media files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.svg
+*.webp
+*.mp4
+*.mov
+*.avi
+*.webm
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.pdf
+# Cache and temp files
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.temp
+*.cache
+.eslintcache
+.stylelintcache
+.prettiercache
+*.swp
+*.swo
+*~
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+# Data files
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+*.mdb
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+credentials.json
+EXCLUDE_EOF
+  fi
+
+  # --- core.worktree の条件付き更新（変更がなければスキップ） ---
+  CURRENT_WORKTREE=$(git -C "$SHADOW_REPO" config --get core.worktree 2>/dev/null)
+  if [ "$CURRENT_WORKTREE" != "$WORKSPACE_ROOT" ]; then
+    git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"
+  fi
+
+  # --- スナップショット作成 ---
+  BRANCH=$(git -C "$WORKSPACE_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+  TIMESTAMP=$(date "+%Y/%m/%d %H:%M:%S")
+  TITLE="[Claude] $BRANCH @ $TIMESTAMP"
+  if [ -n "$USER_PROMPT" ]; then
+    MESSAGE="$TITLE
 
 $USER_PROMPT"
-else
-  MESSAGE="$TITLE"
-fi
+  else
+    MESSAGE="$TITLE"
+  fi
 
-cd "$SHADOW_REPO" || exit 0
-if safe_git_add "$SHADOW_REPO"; then
-  safe_git_commit "$SHADOW_REPO" "$MESSAGE" || echo "$(date '+%Y-%m-%d %H:%M:%S') - Commit failed, see log: $LOG_FILE" >&2
-fi
+  git -C "$SHADOW_REPO" add -A || { echo "$(date '+%Y-%m-%d %H:%M:%S') - git add failed" >&2; exit 0; }
 
-# ログファイルパスを出力
-echo "Checkpoint log: $LOG_FILE"
+  # ステージングエリアに変更がなければコミットをスキップ
+  if git -C "$SHADOW_REPO" diff --cached --quiet 2>/dev/null; then
+    exit 0
+  fi
+
+  printf '%s' "$MESSAGE" | git -C "$SHADOW_REPO" commit -F - || {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Commit failed" >&2
+    exit 0
+  }
+
+  # --- 確率的 gc（1/50 の確率で実行、リポ肥大化防止） ---
+  # $RANDOM は bash 組み込み変数。shebang が #!/bin/bash なので使用可能。
+  # ロック保持中に同期実行する（--auto 付きなので不要なら即座に終了する）。
+  # バックグラウンド実行だとロック解放後に次のチェックポイントと index.lock 競合が起きうる。
+  if [ $((RANDOM % 50)) -eq 0 ]; then
+    git -C "$SHADOW_REPO" gc --auto --quiet 2>&1 || true
+  fi
+) &
+disown
+
 exit 0
