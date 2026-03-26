@@ -4,6 +4,21 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.1.0] - 2026-03-26
+
+### Added
+- Checkpoint delete command for Claude Code plugin (`delete-checkpoints`)
+- Auto-cleanup implementation for expired snapshots in Claude plugin scripts
+
+### Changed
+- Background checkpoint saving for improved performance
+- Enhanced lock mechanism for more reliable concurrent Git operations
+- Updated documentation to reflect new features and UI improvements
+- Simplified plugin name for clarity
+
+### Security
+- Bumped flatted in the npm_and_yarn group
+
 ## [1.0.4] - 2026-03-20
 
 ### Changed
