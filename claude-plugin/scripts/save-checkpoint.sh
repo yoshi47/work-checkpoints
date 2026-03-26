@@ -215,6 +215,47 @@ $USER_PROMPT"
   if [ $((RANDOM % 50)) -eq 0 ]; then
     git -C "$SHADOW_REPO" gc --auto --quiet 2>&1 || true
   fi
+
+  # --- 確率的 auto-cleanup（1/50 の確率で実行） ---
+  # 環境変数 WORK_CHECKPOINTS_RETENTION_DAYS で保持日数を設定（デフォルト: 0=無効）。
+  # delete-checkpoints.sh --older-than と同じロジックだが、既にロック保持中のため
+  # 外部スクリプト呼び出しではなくインラインで実行する（デッドロック防止）。
+  RETENTION_DAYS="${WORK_CHECKPOINTS_RETENTION_DAYS:-0}"
+  # 非数値の場合は無効化（typo などによるサイレント無効化を防止）
+  if ! echo "$RETENTION_DAYS" | grep -q '^[0-9]\+$'; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Invalid WORK_CHECKPOINTS_RETENTION_DAYS='$RETENTION_DAYS', must be a positive integer" >&2
+    RETENTION_DAYS=0
+  fi
+  if [ "$RETENTION_DAYS" -gt 0 ] && [ $((RANDOM % 50)) -eq 0 ]; then
+    CUTOFF=$(( $(date +%s) - RETENTION_DAYS * 86400 ))
+    CLEANUP_LOG=$(git -C "$SHADOW_REPO" log --format="%h %ct" --all 2>&1)
+    if [ $? -ne 0 ]; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - Auto-cleanup: git log failed: $CLEANUP_LOG" >&2
+    else
+      while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        HASH=$(echo "$line" | cut -d' ' -f1)
+        TIMESTAMP=$(echo "$line" | cut -d' ' -f2)
+        # タイムスタンプが数値でなければスキップ
+        if ! echo "$TIMESTAMP" | grep -q '^[0-9]\+$'; then
+          continue
+        fi
+        if [ "$TIMESTAMP" -lt "$CUTOFF" ]; then
+          # お気に入りは保護（VS Code の deleteOldSnapshots と同じポリシー）
+          if [ -f "$SHADOW_REPO/.favorites" ] && grep -q "^${HASH}$" "$SHADOW_REPO/.favorites" 2>/dev/null; then
+            continue
+          fi
+          # 未削除のもののみ追記
+          if ! grep -q "^${HASH}$" "$SHADOW_REPO/.deleted" 2>/dev/null; then
+            if ! echo "$HASH" >> "$SHADOW_REPO/.deleted"; then
+              echo "$(date '+%Y-%m-%d %H:%M:%S') - Auto-cleanup: failed to write deletion record for $HASH" >&2
+              break
+            fi
+          fi
+        fi
+      done <<< "$CLEANUP_LOG"
+    fi
+  fi
 ) &
 disown
 
