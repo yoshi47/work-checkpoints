@@ -1,0 +1,44 @@
+claude-plugin/scripts/save-checkpoint.sh
+  0e7c86fd3b91f5a8 218-258
+claude-plugin/scripts/delete-checkpoints.sh
+  0e7c86fd3b91f5a8 8,33,76-85,193-245,279
+  9e8483b74911c847 1-7,9-32,34-75,86-192,246-278,280-281
+claude-plugin/commands/delete-checkpoints.md
+  9e8483b74911c847 1-18,20-37,43-47
+  0e7c86fd3b91f5a8 19,38-42
+claude-plugin/.claude-plugin/plugin.json
+  9e8483b74911c847 3,8-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "3ef49d7ebdc79e7ccbe3e465ad38b6917b55dbbe",
+  "prompts": {
+    "0e7c86fd3b91f5a8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c92a077c-4652-42ae-be99-b793a809ff4f",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 125,
+      "total_deletions": 12,
+      "accepted_lines": 113,
+      "overriden_lines": 0
+    },
+    "9e8483b74911c847": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fac74ea-0a11-4d6e-a98d-8e8819cc47f7",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 275,
+      "total_deletions": 16,
+      "accepted_lines": 261,
+      "overriden_lines": 0
+    }
+  }
+}
