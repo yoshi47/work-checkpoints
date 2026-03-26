@@ -1,0 +1,27 @@
+CHANGELOG.md
+  a757e0d02fe05fd2 7-21
+package.json
+  a757e0d02fe05fd2 5
+.claude-plugin/marketplace.json
+  a757e0d02fe05fd2 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.19",
+  "base_commit_sha": "a1b0b9967c194ee064399dcf53338eb0f56d18a8",
+  "prompts": {
+    "a757e0d02fe05fd2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d8faddcc-d54f-4b2d-b2da-56119bb0f98d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 2,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}
