@@ -4,6 +4,21 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.2.0] - 2026-04-23
+
+### Added
+- Config file sync: VS Code settings (`messageFormat`, `dateFormat`, `ignorePatterns`, `retentionDays`) are now synced to `config.json` in the shadow repository for CLI consumers (Claude Code plugin, OpenCode plugin)
+- Customizable message format and date format support in CLI tools via shared config
+- strftime-style date format conversion (`yyyy/MM/dd` → `%Y/%m/%d`) for CLI compatibility
+
+### Changed
+- Automatic exclude pattern refresh when `ignorePatterns` setting changes
+- Retention days setting is now read from `config.json` for unified config management across VS Code extension and CLI
+
+### Security
+- Bumped lodash to 4.18.1 (dependabot)
+- Bumped npm_and_yarn group dependencies (dependabot)
+
 ## [1.1.0] - 2026-03-26
 
 ### Added
