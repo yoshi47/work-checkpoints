@@ -72,12 +72,23 @@ export const activate = (context: vscode.ExtensionContext) => {
   const showSettingsButton = vscode.workspace.getConfiguration('work-checkpoints').get('showSettingsButton', false);
   vscode.commands.executeCommand('setContext', 'workCheckpoints.showSettingsButton', showSettingsButton);
 
-  // Update settings button visibility when configuration changes
+  // Update settings button visibility and sync config.json when configuration changes
+  const SYNC_KEYS = ['messageFormat', 'dateFormat', 'ignorePatterns', 'retentionDays'] as const;
   context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration((e) => {
+    vscode.workspace.onDidChangeConfiguration(async (e) => {
       if (e.affectsConfiguration('work-checkpoints.showSettingsButton')) {
         const show = vscode.workspace.getConfiguration('work-checkpoints').get('showSettingsButton', false);
         vscode.commands.executeCommand('setContext', 'workCheckpoints.showSettingsButton', show);
+      }
+      if (SYNC_KEYS.some((k) => e.affectsConfiguration(`work-checkpoints.${k}`))) {
+        const shadowGitService = snapshotTreeProvider.getShadowGitService();
+        if (shadowGitService) {
+          try {
+            await shadowGitService.syncConfigFile();
+          } catch (error) {
+            console.error('[work-checkpoints] Failed to sync config:', error);
+          }
+        }
       }
     })
   );

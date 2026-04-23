@@ -73,43 +73,12 @@ mkdir -p "$SHADOW_REPO" || exit 0
 
   acquire_lock || exit 0
 
-  # --- デバウンス: 高速連打の抑制 ---
-  # 最後のコミットから5秒未満ならスキップ。
-  # 目的: 同一プロンプトの連打・即座の修正送信の重複防止。通常の作業間隔(1-2分)は影響なし。
-  LAST_COMMIT_TIME=$(git -C "$SHADOW_REPO" log -1 --format=%ct 2>/dev/null || echo 0)
-  CURRENT_TIME=$(date +%s)
-  if [ $((CURRENT_TIME - LAST_COMMIT_TIME)) -lt 5 ]; then
-    exit 0
-  fi
+  CONFIG_FILE="$SHADOW_REPO/config.json"
 
-  # --- シャドウリポジトリの初期化（必要な場合） ---
-  if [ ! -d "$SHADOW_REPO/.git" ]; then
-    if ! git -C "$SHADOW_REPO" init; then
-      echo "$(date '+%Y-%m-%d %H:%M:%S') - git init failed for $SHADOW_REPO" >&2
-      exit 0
-    fi
-    git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"
-    git -C "$SHADOW_REPO" config user.email "work-checkpoints@local"
-    git -C "$SHADOW_REPO" config user.name "Work Checkpoints"
-    git -C "$SHADOW_REPO" config core.quotepath false
-    git -C "$SHADOW_REPO" config i18n.commitencoding utf-8
-    git -C "$SHADOW_REPO" config i18n.logoutputencoding utf-8
-
-    # fsmonitor と untrackedCache を有効化（大規模リポのスキャン高速化）
-    git -C "$SHADOW_REPO" config core.fsmonitor true
-    git -C "$SHADOW_REPO" config core.untrackedcache true
-
-    # gc 設定（リポ肥大化防止）
-    git -C "$SHADOW_REPO" config gc.auto 100
-    git -C "$SHADOW_REPO" config gc.autoPackLimit 4
-    git -C "$SHADOW_REPO" config gc.pruneExpire "2.weeks.ago"
-
-    # exclude パターン設定（デフォルトのみ。ユーザー追加パターンは VS Code 拡張の
-    # writeExcludePatterns() が次回起動時に上書き反映する）
-    # KEEP IN SYNC WITH src/utils/excludes.ts getDefaultExcludePatterns()
-    EXCLUDE_DIR="$SHADOW_REPO/.git/info"
-    mkdir -p "$EXCLUDE_DIR"
-    cat > "$EXCLUDE_DIR/exclude" << 'EXCLUDE_EOF'
+  # --- デフォルト exclude パターンの書き出し ---
+  # KEEP IN SYNC WITH src/utils/excludes.ts getDefaultExcludePatterns()
+  write_default_excludes() {
+    cat << 'EXCLUDE_EOF'
 # Build artifacts
 node_modules/
 dist/
@@ -176,6 +145,53 @@ Thumbs.db
 *.crt
 credentials.json
 EXCLUDE_EOF
+  }
+
+  # --- config.json の ignorePatterns を exclude に追記 ---
+  append_user_ignore_patterns() {
+    local target="$1"
+    if [ ! -f "$CONFIG_FILE" ] || ! command -v jq &> /dev/null; then
+      return 0
+    fi
+    jq -r '.ignorePatterns // [] | .[]' "$CONFIG_FILE" 2>/dev/null >> "$target" || true
+  }
+
+  # --- デバウンス: 高速連打の抑制 ---
+  # 最後のコミットから5秒未満ならスキップ。
+  # 目的: 同一プロンプトの連打・即座の修正送信の重複防止。通常の作業間隔(1-2分)は影響なし。
+  LAST_COMMIT_TIME=$(git -C "$SHADOW_REPO" log -1 --format=%ct 2>/dev/null || echo 0)
+  CURRENT_TIME=$(date +%s)
+  if [ $((CURRENT_TIME - LAST_COMMIT_TIME)) -lt 5 ]; then
+    exit 0
+  fi
+
+  # --- シャドウリポジトリの初期化（必要な場合） ---
+  if [ ! -d "$SHADOW_REPO/.git" ]; then
+    if ! git -C "$SHADOW_REPO" init; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - git init failed for $SHADOW_REPO" >&2
+      exit 0
+    fi
+    git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"
+    git -C "$SHADOW_REPO" config user.email "work-checkpoints@local"
+    git -C "$SHADOW_REPO" config user.name "Work Checkpoints"
+    git -C "$SHADOW_REPO" config core.quotepath false
+    git -C "$SHADOW_REPO" config i18n.commitencoding utf-8
+    git -C "$SHADOW_REPO" config i18n.logoutputencoding utf-8
+
+    # fsmonitor と untrackedCache を有効化（大規模リポのスキャン高速化）
+    git -C "$SHADOW_REPO" config core.fsmonitor true
+    git -C "$SHADOW_REPO" config core.untrackedcache true
+
+    # gc 設定（リポ肥大化防止）
+    git -C "$SHADOW_REPO" config gc.auto 100
+    git -C "$SHADOW_REPO" config gc.autoPackLimit 4
+    git -C "$SHADOW_REPO" config gc.pruneExpire "2.weeks.ago"
+
+    # exclude パターン設定
+    EXCLUDE_DIR="$SHADOW_REPO/.git/info"
+    mkdir -p "$EXCLUDE_DIR"
+    write_default_excludes > "$EXCLUDE_DIR/exclude"
+    append_user_ignore_patterns "$EXCLUDE_DIR/exclude"
   fi
 
   # --- core.worktree の条件付き更新（変更がなければスキップ） ---
@@ -184,10 +200,49 @@ EXCLUDE_EOF
     git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"
   fi
 
+  # --- config.json の読み込み ---
+  CFG_MSG_FMT=""
+  CFG_DATE_FMT=""
+  CFG_RETENTION=""
+  if [ -f "$CONFIG_FILE" ]; then
+    if ! command -v jq &> /dev/null; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - WARNING: jq not installed, config.json ignored" >&2
+    elif ! jq empty "$CONFIG_FILE" 2>/dev/null; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - WARNING: config.json is not valid JSON, using defaults" >&2
+    else
+      CFG_MSG_FMT=$(jq -r '.messageFormat // empty' "$CONFIG_FILE" 2>/dev/null)
+      CFG_DATE_FMT=$(jq -r '.dateFormat // empty' "$CONFIG_FILE" 2>/dev/null)
+      CFG_RETENTION=$(jq -r '.retentionDays // empty' "$CONFIG_FILE" 2>/dev/null)
+    fi
+  fi
+
+  # --- dateFormat トークン (yyyy/MM/dd) を strftime (%Y/%m/%d) に変換 ---
+  format_date() {
+    local fmt="${1:-yyyy/MM/dd HH:mm:ss}"
+    fmt="${fmt//yyyy/%Y}"
+    fmt="${fmt//MM/%m}"
+    fmt="${fmt//dd/%d}"
+    fmt="${fmt//HH/%H}"
+    fmt="${fmt//mm/%M}"
+    fmt="${fmt//ss/%S}"
+    date "+$fmt"
+  }
+
+  # --- config.json が新しい場合は exclude を再生成 ---
+  EXCLUDE_FILE="$SHADOW_REPO/.git/info/exclude"
+  if [ -f "$CONFIG_FILE" ] && [ -f "$EXCLUDE_FILE" ] && [ "$CONFIG_FILE" -nt "$EXCLUDE_FILE" ]; then
+    write_default_excludes > "$EXCLUDE_FILE"
+    append_user_ignore_patterns "$EXCLUDE_FILE"
+  fi
+
   # --- スナップショット作成 ---
   BRANCH=$(git -C "$WORKSPACE_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-  TIMESTAMP=$(date "+%Y/%m/%d %H:%M:%S")
-  TITLE="[Claude] $BRANCH @ $TIMESTAMP"
+  # KEEP IN SYNC WITH src/utils/configFile.ts DEFAULTS
+  TIMESTAMP=$(format_date "${CFG_DATE_FMT}")
+  MSG_TEMPLATE="${CFG_MSG_FMT:-\${branch} @ \${date}}"
+  FORMATTED_MSG="${MSG_TEMPLATE//\$\{branch\}/$BRANCH}"
+  FORMATTED_MSG="${FORMATTED_MSG//\$\{date\}/$TIMESTAMP}"
+  TITLE="[Claude] $FORMATTED_MSG"
   if [ -n "$USER_PROMPT" ]; then
     MESSAGE="$TITLE
 
@@ -220,7 +275,7 @@ $USER_PROMPT"
   # 環境変数 WORK_CHECKPOINTS_RETENTION_DAYS で保持日数を設定（デフォルト: 0=無効）。
   # delete-checkpoints.sh --older-than と同じロジックだが、既にロック保持中のため
   # 外部スクリプト呼び出しではなくインラインで実行する（デッドロック防止）。
-  RETENTION_DAYS="${WORK_CHECKPOINTS_RETENTION_DAYS:-0}"
+  RETENTION_DAYS="${WORK_CHECKPOINTS_RETENTION_DAYS:-${CFG_RETENTION:-0}}"
   # 非数値の場合は無効化（typo などによるサイレント無効化を防止）
   if ! echo "$RETENTION_DAYS" | grep -q '^[0-9]\+$'; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - Invalid WORK_CHECKPOINTS_RETENTION_DAYS='$RETENTION_DAYS', must be a positive integer" >&2

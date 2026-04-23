@@ -119,6 +119,50 @@ export const WorkCheckpointsPlugin: Plugin = async ({ $, worktree }) => {
     return false
   }
 
+  const readConfig = async (
+    shadowRepo: string
+  ): Promise<{ messageFormat?: string; dateFormat?: string }> => {
+    const filePath = `${shadowRepo}/config.json`
+    let content: string
+    try {
+      content = await Bun.file(filePath).text()
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+        console.error(
+          `[work-checkpoints] Failed to read ${filePath}:`,
+          error
+        )
+      }
+      return {}
+    }
+    try {
+      const parsed = JSON.parse(content)
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return {}
+      }
+      return parsed as { messageFormat?: string; dateFormat?: string }
+    } catch (error) {
+      console.error(
+        `[work-checkpoints] Invalid JSON in ${filePath}:`,
+        error
+      )
+      return {}
+    }
+  }
+
+  const formatDate = (date: Date, fmt: string): string => {
+    const pad = (n: number) => n.toString().padStart(2, "0")
+    const tokens: Record<string, string> = {
+      yyyy: date.getFullYear().toString(),
+      MM: pad(date.getMonth() + 1),
+      dd: pad(date.getDate()),
+      HH: pad(date.getHours()),
+      mm: pad(date.getMinutes()),
+      ss: pad(date.getSeconds()),
+    }
+    return fmt.replace(/yyyy|MM|dd|HH|mm|ss/g, (m) => tokens[m])
+  }
+
   return {
     // Auto-save on user message
     "chat.message": async (input, output) => {
@@ -134,12 +178,21 @@ export const WorkCheckpointsPlugin: Plugin = async ({ $, worktree }) => {
           ).stdout
             .toString()
             .trim() || "unknown"
-        const timestamp = new Date().toLocaleString("ja-JP", {
-          timeZone: "Asia/Tokyo",
-        })
+
+        const config = await readConfig(shadowRepo)
+        // KEEP IN SYNC WITH src/utils/configFile.ts DEFAULTS
+        const dateStr = formatDate(
+          new Date(),
+          config.dateFormat || "yyyy/MM/dd HH:mm:ss"
+        )
+        const msgTemplate = config.messageFormat || "${branch} @ ${date}"
+        const formatted = msgTemplate
+          .replaceAll("${branch}", branch)
+          .replaceAll("${date}", dateStr)
+        const title = `[OpenCode] ${formatted}`
+
         const promptText =
           output.message?.parts?.[0]?.text?.substring(0, 500) || ""
-        const title = `[OpenCode] ${branch} @ ${timestamp}`
         const message = promptText ? `${title}\n\n${promptText}` : title
 
         if (await safeGitAdd(shadowRepo)) {

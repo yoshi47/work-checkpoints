@@ -6,6 +6,7 @@ import { SnapshotMetadata, ShadowRepoConfig, DiffFileInfo, DiffFileStatus } from
 import { SHADOW_REPO_BASE_PATH } from '../utils/constants';
 import { generateRepoIdentifier } from '../utils/hashUtils';
 import { writeExcludePatterns } from '../utils/excludes';
+import { writeConfigFile } from '../utils/configFile';
 
 export class ShadowGitService {
   private config: ShadowRepoConfig;
@@ -186,6 +187,23 @@ export class ShadowGitService {
       const additionalPatterns = config.get<string[]>('ignorePatterns', []);
       await writeExcludePatterns(this.config.shadowRepoPath, additionalPatterns);
     }
+
+    // Sync VS Code settings to config.json for CLI consumers
+    try {
+      await this.syncConfigFile();
+    } catch (error) {
+      console.error('[work-checkpoints] Failed to sync config:', error);
+    }
+  };
+
+  syncConfigFile = async (): Promise<void> => {
+    const vsConfig = vscode.workspace.getConfiguration('work-checkpoints');
+    await writeConfigFile(this.config.shadowRepoPath, {
+      messageFormat: vsConfig.get<string>('messageFormat'),
+      dateFormat: vsConfig.get<string>('dateFormat'),
+      ignorePatterns: vsConfig.get<string[]>('ignorePatterns'),
+      retentionDays: vsConfig.get<number>('retentionDays'),
+    });
   };
 
   createSnapshot = async (
