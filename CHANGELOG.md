@@ -4,11 +4,18 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [1.3.0] - 2026-05-01
 
 ### Added
 - Codex CLI plugin (`codex-plugin/`) — UserPromptSubmit hook integration that saves checkpoints to the shared shadow repository, with `[Codex]` commit prefix
 - Codex-specific delete mode (`delete-checkpoints.sh --codex`) for bulk-removing Codex-created checkpoints
+- `restore-checkpoint.sh` now records each restore operation to `checkpoint.log` for audit trail (Claude Code and Codex plugins)
+
+### Fixed
+- Commit message template `${branch} @ ${date}` was not substituted correctly when no `messageFormat` was configured, producing broken `[Claude] ${branch @ ...}` titles (Claude Code and Codex plugins)
+- `restore-checkpoint.sh` now acquires the same `mkdir`-based lock used by `save-checkpoint.sh`, preventing `index.lock` collisions and partial restores when a save runs in parallel
+- Save hook now verifies `checkpoint.log` is writable on startup; if not, it falls back to `~/.work-checkpoints-error` (and finally stderr) instead of silently swallowing every subsequent failure
+- Save hook now detects a corrupted shadow repository (existing `.git` directory but `git log` fails) and exits cleanly with a diagnostic message, instead of treating it as "no previous commit" and looping into more failures
 
 ## [1.2.0] - 2026-04-23
 
