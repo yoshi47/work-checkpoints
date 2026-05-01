@@ -1,0 +1,27 @@
+.claude-plugin/marketplace.json
+  d552438167b030b2 12
+package.json
+  d552438167b030b2 5
+CHANGELOG.md
+  d552438167b030b2 7,12-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "c333a94ea004ae22242f4dcf7e87c0631c91741a",
+  "prompts": {
+    "d552438167b030b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c30cebcb-7a95-4a9e-a1cd-caf7058e1a43",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "yoshi47",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 3,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}
