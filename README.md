@@ -2,7 +2,7 @@
 
 Save and restore work snapshots using a shadow Git repository. Perfect for experimenting with code changes without committing to your main repository.
 
-Works with **VSCode**, **[Claude Code](#claude-code-plugin)**, and **[OpenCode](#opencode-plugin)**.
+Works with **VSCode**, **[Claude Code](#claude-code-plugin)**, **[OpenCode](#opencode-plugin)**, and **[Codex CLI](#codex-cli-plugin)**.
 
 ## Features
 
@@ -156,7 +156,7 @@ Use the same checkpoint functionality in Claude Code. Automatically creates a ch
 
 - **Auto-save**: Creates a checkpoint each time you send a prompt
 - **Checkpoint restore**: Revert to previous checkpoints
-- Shares the same shadow repository with the VSCode extension
+- Shares the same shadow repository as the VSCode extension and the other plugins (OpenCode, Codex CLI)
 
 ### Commands
 
@@ -193,13 +193,60 @@ cp opencode-plugin/work-checkpoints.ts .opencode/plugin/
 - **Auto-save**: Creates a checkpoint each time you send a message (`chat.message` hook)
 - **List checkpoints**: `list_checkpoints` tool to view all saved checkpoints
 - **Restore checkpoints**: `restore_checkpoint` tool to revert to a previous state
-- Shares the same shadow repository with the VSCode extension and Claude Code plugin
+- Shares the same shadow repository as the VSCode extension and the other plugins (Claude Code, Codex CLI)
 - Git lock waiting and retry logic for stability
 
 ### Requirements
 
 - [Bun](https://bun.sh/) runtime (used by OpenCode)
 - `@opencode-ai/plugin` package (installed in your OpenCode config directory)
+
+## Codex CLI Plugin
+
+Use the same checkpoint functionality in OpenAI's [Codex CLI](https://developers.openai.com/codex/). Automatically creates a checkpoint every time you submit a prompt.
+
+### Installation
+
+```bash
+# 1) Copy hook scripts to a stable location
+mkdir -p ~/.codex/hooks/work-checkpoints
+cp codex-plugin/scripts/*.sh ~/.codex/hooks/work-checkpoints/
+chmod +x ~/.codex/hooks/work-checkpoints/*.sh
+
+# 2) Install the hooks definition
+#    (skip this step and merge by hand if ~/.codex/hooks.json already exists)
+cp codex-plugin/hooks/hooks.json ~/.codex/hooks.json
+```
+
+Then enable the feature flag by adding the following to `~/.codex/config.toml`. **If a `[features]` table already exists, add only the `codex_hooks = true` line under it** — TOML rejects duplicate tables.
+
+```toml
+[features]
+codex_hooks = true
+```
+
+See [`codex-plugin/README.md`](codex-plugin/README.md) for project-local install and more details.
+
+### Requirements
+
+- A Codex CLI version that supports the `UserPromptSubmit` hook (see the [official hooks docs](https://developers.openai.com/codex/hooks))
+- The `codex_hooks` feature flag while it remains gated
+
+### How It Works
+
+- Uses the `UserPromptSubmit` hook to save a checkpoint on each prompt submission
+- Same shadow repository as the VSCode extension and other plugins (`~/.work-checkpoints/`)
+- Commit messages follow the format: `[Codex] <branch> @ <timestamp>`
+
+### Troubleshooting
+
+Same log file as the other plugins:
+
+```
+~/.work-checkpoints/<repo-id>/checkpoint.log
+```
+
+If hooks don't fire, double-check `[features].codex_hooks = true` in `~/.codex/config.toml` and that the `UserPromptSubmit` entry is present in `~/.codex/hooks.json`.
 
 ## Requirements
 

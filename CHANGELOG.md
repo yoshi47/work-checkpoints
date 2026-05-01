@@ -4,6 +4,12 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [Unreleased]
+
+### Added
+- Codex CLI plugin (`codex-plugin/`) — UserPromptSubmit hook integration that saves checkpoints to the shared shadow repository, with `[Codex]` commit prefix
+- Codex-specific delete mode (`delete-checkpoints.sh --codex`) for bulk-removing Codex-created checkpoints
+
 ## [1.2.0] - 2026-04-23
 
 ### Added

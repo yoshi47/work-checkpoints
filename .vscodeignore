@@ -12,6 +12,7 @@ out/test/**
 pnpm-lock.yaml
 node_modules/**
 claude-plugin/**
+codex-plugin/**
 .claude-plugin/**
 .idea/**
 .github/**

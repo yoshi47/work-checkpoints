@@ -1,0 +1,6 @@
+# Codex hooks are currently behind a feature flag.
+# Merge this snippet into ~/.codex/config.toml.
+# If [features] already exists, only add the codex_hooks line under it.
+
+[features]
+codex_hooks = true

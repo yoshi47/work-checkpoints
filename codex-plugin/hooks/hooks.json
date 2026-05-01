@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.codex/hooks/work-checkpoints/save-checkpoint.sh",
+            "timeout": 5,
+            "statusMessage": "Saving checkpoint"
+          }
+        ]
+      }
+    ]
+  }
+}

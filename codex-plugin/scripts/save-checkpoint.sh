@@ -4,6 +4,7 @@
 # エラー時も正常終了してユーザー操作をブロックしない
 
 # stdinからJSONを読み取り、プロンプトを抽出
+# Codex の UserPromptSubmit hook も Claude Code と同じく "prompt" キーで送信される
 INPUT=$(cat)
 if command -v jq &> /dev/null; then
   USER_PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null | head -c 500)
@@ -265,7 +266,7 @@ EXCLUDE_EOF
   fi
   FORMATTED_MSG="${MSG_TEMPLATE//\$\{branch\}/$BRANCH}"
   FORMATTED_MSG="${FORMATTED_MSG//\$\{date\}/$TIMESTAMP}"
-  TITLE="[Claude] $FORMATTED_MSG"
+  TITLE="[Codex] $FORMATTED_MSG"
   if [ -n "$USER_PROMPT" ]; then
     MESSAGE="$TITLE
 
