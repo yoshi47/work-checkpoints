@@ -1,7 +1,65 @@
+src/views/snapshotTreeProvider.ts
+  d552438167b030b2 8-24,32,34-38,119,164-165,180-203,246-254,262-264,273-286,292-321
+.claude-plugin/marketplace.json
+  d552438167b030b2 4-5,12-17
+claude-plugin/commands/delete-checkpoints.md
+  d552438167b030b2 1-47
+src/commands/deleteSnapshots.ts
+  d552438167b030b2 10,14,23,30-39,87-130
+src/extension.ts
+  d552438167b030b2 6,10-11,15-16,37-43,47-95,105-108,112,140-147,174-193,197-213,222-266,269,330-356,429-431,433-436,438-442,444,446-478,482-484,486-489,491-495,497-501,503-505,507-519,521-523,525-532,579-581,583-586,588-592,594-598,600-602,604-630,633,635-640,680-728
+opencode-plugin/work-checkpoints.ts
+  d552438167b030b2 1-382
+src/test/unit/autoCleanupService.test.ts
+  d552438167b030b2 1-84
+src/test/unit/shadowGitService.test.ts
+  d552438167b030b2 181-211,294-500
+src/types/index.ts
+  d552438167b030b2 6-8
+CHANGELOG.md
+  d552438167b030b2 7-135
+src/views/fileHistoryTreeProvider.ts
+  d552438167b030b2 1-88
+src/services/shadowGitService.ts
+  d552438167b030b2 9,38-41,54,56-58,64-109,150-152,155-162,165,176-183,190-206,220-222,239-241,243-245,265-280,288-294,304-306,318-320,337-349,354-377,380-385,391-393,405-408,421-560,591,596-598,601,604-605,612-614,618,621-622,632-633
+src/providers/snapshotContentProvider.ts
+  d552438167b030b2 6,20,24,27-28
+claude-plugin/scripts/delete-checkpoints.sh
+  d552438167b030b2 1-281
+claude-plugin/scripts/save-checkpoint.sh
+  d552438167b030b2 3-5,9,11,28-29,31-183,185-188,190-247,250-315,317
+package.json
+  d552438167b030b2 5,11,70-79,107,112,115-134,139-163,185-188,192-197,223-234,240-269,294-322,327,329-338,343,348,403,405
+src/services/autoCleanupService.ts
+  d552438167b030b2 1-55
+src/test/unit/snapshotTreeProvider.test.ts
+  d552438167b030b2 3,63-104
+src/utils/configFile.ts
+  d552438167b030b2 1-82
+claude-plugin/.claude-plugin/plugin.json
+  d552438167b030b2 3,8-11
+README.md
+  d552438167b030b2 5-6,11-13,16,18-20,40-45,54-69,72-73,77,80-95,105-106,143,149-154,158,163-202
+tsconfig.json
+  d552438167b030b2 16-19
 ---
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.3.4",
   "base_commit_sha": "709b9cee2e8e009cfb2e3e8528c4975b67953e88",
-  "prompts": {}
+  "prompts": {
+    "d552438167b030b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c30cebcb-7a95-4a9e-a1cd-caf7058e1a43",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "yoshi47",
+      "messages": [],
+      "total_additions": 2885,
+      "total_deletions": 246,
+      "accepted_lines": 2885,
+      "overriden_lines": 0
+    }
+  }
 }
