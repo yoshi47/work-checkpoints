@@ -1,29 +1,7 @@
-CHANGELOG.md
-  60fbc39ed814e9e6 7-21
-package.json
-  60fbc39ed814e9e6 5
-src/utils/configFile.ts
-  60fbc39ed814e9e6 1-82
-.claude-plugin/marketplace.json
-  60fbc39ed814e9e6 12
 ---
 {
   "schema_version": "authorship/3.0.0",
-  "git_ai_version": "1.3.2",
+  "git_ai_version": "1.3.4",
   "base_commit_sha": "709b9cee2e8e009cfb2e3e8528c4975b67953e88",
-  "prompts": {
-    "60fbc39ed814e9e6": {
-      "agent_id": {
-        "tool": "claude",
-        "id": "a7769357-e9ab-405e-9a2c-d4e7039890fc",
-        "model": "claude-opus-4-7"
-      },
-      "human_author": "yoshi47",
-      "messages": [],
-      "total_additions": 99,
-      "total_deletions": 2,
-      "accepted_lines": 181,
-      "overriden_lines": 0
-    }
-  }
+  "prompts": {}
 }
