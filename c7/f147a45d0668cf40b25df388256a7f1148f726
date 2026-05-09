@@ -1,0 +1,20 @@
+src/services/shadowGitService.ts
+  s_c7fd21bed24b0f::t_bd12c07df79184 46-47
+  s_c7fd21bed24b0f::t_c578ddcf23612a 44-45,48-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "c7f147a45d0668cf40b25df388256a7f1148f726",
+  "prompts": {},
+  "sessions": {
+    "s_c7fd21bed24b0f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3464b01c-bc24-46e7-9ce2-aa7ec8d4d135",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "yoshi47 <yoshix47@gmail.com>"
+    }
+  }
+}
