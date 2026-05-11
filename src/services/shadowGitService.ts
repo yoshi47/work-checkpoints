@@ -41,12 +41,33 @@ export class ShadowGitService {
 
   private getGit = (): SimpleGit => {
     if (!this.git) {
-      // 環境変数をサニタイズ（Dev Container対応）
-      const sanitizedEnv = { ...process.env };
-      delete sanitizedEnv.GIT_DIR;
-      delete sanitizedEnv.GIT_WORK_TREE;
-      delete sanitizedEnv.GIT_INDEX_FILE;
-      delete sanitizedEnv.GIT_COMMON_DIR;
+      // shadow repo が外側の git 環境に影響されないよう、git 実行に必要な
+      // 環境変数のみを allowlist で渡す。GIT_* を除外することで Dev Container
+      // 対応を維持しつつ、simple-git 3.36+ の unsafe env ブロック
+      // (EDITOR / PAGER / SSH_ASKPASS / git_* 等) を回避する。
+      const allowedEnvKeys = [
+        'PATH',
+        'HOME',
+        'USER',
+        'USERNAME',
+        'USERPROFILE',
+        'LANG',
+        'LC_ALL',
+        'TMPDIR',
+        'TEMP',
+        'TMP',
+        'SystemRoot',
+        'APPDATA',
+        'LOCALAPPDATA',
+        'PATHEXT',
+      ];
+      const sanitizedEnv: NodeJS.ProcessEnv = {};
+      for (const key of allowedEnvKeys) {
+        const value = process.env[key];
+        if (value !== undefined) {
+          sanitizedEnv[key] = value;
+        }
+      }
 
       this.git = simpleGit({
         baseDir: this.config.shadowRepoPath,
