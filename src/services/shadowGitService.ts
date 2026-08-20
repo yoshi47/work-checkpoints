@@ -12,6 +12,12 @@ import { writeConfigFile } from '../utils/configFile';
 
 const execFileAsync = promisify(execFile);
 
+// git config --get は「キーが無い」だけを exit 1 で返す。設定ファイル破損やタイムアウトは
+// 別のコードになる。それらを「未設定」と同一視すると worktree の検査が無言で消え、
+// 破壊的な復元を素通りさせてしまうので、exit 1 だけを未設定として扱う。
+export const isConfigKeyMissing = (error: unknown): boolean =>
+  (error as { exitCode?: number } | null)?.exitCode === 1;
+
 // シャドウリポジトリが別のワークスペースに紐付いていて復元を拒否したことを表す。
 // 呼び出し側は追跡先をユーザーに提示して明示的な確認を取る。
 export class WorktreeMismatchError extends Error {
@@ -84,21 +90,29 @@ export class ShadowGitService {
     return env;
   };
 
+  // 保存された core.worktree ではなく毎回このワークスペースを指して実行する。
+  // 保存値を読み取り操作のたびに書き換えると、それが「最後にこのリポジトリを使った
+  // ワークスペース」の記録として使えなくなり、restore 前の検査が直前の読み取りで素通りする。
+  // -c core.worktree=... は使えない。git はコマンドライン由来の core.worktree を無視するため
+  // （保存値がそのまま使われ、別ワークスペースを見に行く）。GIT_WORK_TREE は効く。
+  // GIT_WORK_TREE は GIT_DIR とセットでないと git が拒否する。
+  private gitEnv = (): NodeJS.ProcessEnv => ({
+    ...ShadowGitService.sanitizedEnv(),
+    GIT_DIR: path.join(this.config.shadowRepoPath, '.git'),
+    GIT_WORK_TREE: this.workspacePath,
+  });
+
   private getGit = (): SimpleGit => {
     if (!this.git) {
       this.git = simpleGit({
         baseDir: this.config.shadowRepoPath,
         binary: 'git',
         maxConcurrentProcesses: 1,
-        // 保存された core.worktree ではなく毎回このワークスペースを指して実行する。
-        // 保存値を読み取り操作のたびに書き換えると、それが「最後にこのリポジトリを
-        // 使ったワークスペース」の記録として使えなくなり、restore 前の検査が
-        // 直前の読み取りで素通りしてしまう。
-        config: [`core.worktree=${this.workspacePath}`],
+        config: [],
         timeout: {
           block: 30000, // 30 seconds timeout for blocking operations
         },
-      }).env(ShadowGitService.sanitizedEnv());
+      }).env(this.gitEnv());
     }
     return this.git;
   };
@@ -246,7 +260,7 @@ export class ShadowGitService {
     // 経路になりうるため）。ここでやりたいのは解除だけなので、生の git を直接叩く。
     const run = async (args: string[]): Promise<void> => {
       await execFileAsync('git', ['-C', this.config.shadowRepoPath, ...args], {
-        env: ShadowGitService.sanitizedEnv(),
+        env: this.gitEnv(),
       });
     };
 
@@ -495,10 +509,7 @@ export class ShadowGitService {
       // -c core.worktree=... は command スコープとして --get に見えてしまうため。
       return (await this.getGit().raw(['config', '--local', '--get', 'core.worktree'])).trim();
     } catch (error) {
-      // git config --get は「キーが無い」を exit 1 で返す。それ以外（設定ファイル破損、
-      // タイムアウト等）を未設定と同一視すると、検査を素通りさせて破壊的な復元を許してしまう。
-      const exitCode = (error as { exitCode?: number }).exitCode;
-      if (exitCode === 1) {
+      if (isConfigKeyMissing(error)) {
         return '';
       }
       throw error;

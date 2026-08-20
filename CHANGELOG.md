@@ -41,8 +41,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   shadow repositories. Scans are slower on large monorepos but no longer lose files.
 - The VS Code extension no longer rewrites `core.worktree` on read-only operations (listing a snapshot's
   changed files, opening a diff). Doing so destroyed the record of which workspace a shadow repository
-  belongs to, which the restore check depends on; git commands now receive the workspace path per
-  invocation instead. Only saving and restoring update the stored binding.
+  belongs to, which the restore check depends on; git now receives the workspace through `GIT_WORK_TREE`
+  per invocation instead. Only saving and restoring update the stored binding. (Note for anyone tempted
+  by `-c core.worktree=…`: git ignores `core.worktree` from the command line, so that route silently
+  keeps using the stored value.)
 - Bumped `@vscode/test-electron` to 3.x and `@vscode/test-cli` to 0.0.15 — the pinned versions could not
   launch VS Code 1.134, so the test suite did not run at all.
 
