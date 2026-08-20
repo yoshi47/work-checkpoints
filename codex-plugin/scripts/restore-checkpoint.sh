@@ -79,6 +79,51 @@ acquire_lock() {
 
 acquire_lock || exit 1
 
+# --- 復元先の検証 ---
+# core.worktree が呼び出し元のワークスペースと一致しない場合は復元しない。
+# 一致しないまま checkout すると、別 worktree / 別クローンの内容で上書きしてしまう。
+# ロック取得後に検査する（取得前だと背後の save-checkpoint.sh に付け替えられる隙がある）。
+CONFIGURED_WORKTREE=$(git -C "$SHADOW_REPO" config --get core.worktree 2>/dev/null)
+
+if [ -n "$WORK_CHECKPOINTS_FORCE_WORKTREE" ] && [ "$WORK_CHECKPOINTS_FORCE_WORKTREE" != "1" ]; then
+  echo "Warning: WORK_CHECKPOINTS_FORCE_WORKTREE is set to '$WORK_CHECKPOINTS_FORCE_WORKTREE'; only '1' disables the check." >&2
+fi
+
+rebind_worktree() {
+  # 失敗したまま checkout に進むと、古い core.worktree が指す別のワークスペースを
+  # 上書きしたうえで「成功しました」と表示することになる。必ず中断する。
+  if ! git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"; then
+    echo "Error: could not point the checkpoint repository at $WORKSPACE_ROOT; aborting." >&2
+    exit 1
+  fi
+}
+
+if [ -z "$CONFIGURED_WORKTREE" ]; then
+  # 未設定のまま checkout するとシャドウリポジトリ自身の中にファイルが展開され、
+  # ワークスペースは何も変わらないのに成功として報告されてしまう。
+  rebind_worktree
+elif [ ! "$CONFIGURED_WORKTREE" -ef "$WORKSPACE_ROOT" ]; then
+  if [ "$WORK_CHECKPOINTS_FORCE_WORKTREE" = "1" ]; then
+    echo "Warning: forced restore into '$WORKSPACE_ROOT' (repository tracked '$CONFIGURED_WORKTREE')" >&2
+    rebind_worktree
+  else
+    echo "Error: this checkpoint repository last tracked a different workspace." >&2
+    echo "  tracked : $CONFIGURED_WORKTREE" >&2
+    echo "  current : $WORKSPACE_ROOT" >&2
+    if [ ! -e "$CONFIGURED_WORKTREE" ]; then
+      echo "  (that path no longer exists)" >&2
+    fi
+    echo "Its history may contain snapshots of that other workspace." >&2
+    echo "  inspect : git -C $SHADOW_REPO log --oneline" >&2
+    echo "  discard : delete-checkpoints.sh --all   (soft delete; recorded in .deleted)" >&2
+    echo "  override: WORK_CHECKPOINTS_FORCE_WORKTREE=1" >&2
+    printf '%s - Refused to restore %s: repository tracks %s, not %s\n' \
+      "$(date '+%Y-%m-%d %H:%M:%S')" "$CHECKPOINT_ID" "$CONFIGURED_WORKTREE" "$WORKSPACE_ROOT" \
+      >> "$LOG_FILE" 2>/dev/null || true
+    exit 1
+  fi
+fi
+
 # 復元を実行（core.worktree が設定されているので直接 checkout 可能）
 git -C "$SHADOW_REPO" checkout "$CHECKPOINT_ID" -- . 2>&1
 rc=$?

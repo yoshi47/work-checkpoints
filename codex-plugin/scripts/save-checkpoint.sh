@@ -198,10 +198,6 @@ EXCLUDE_EOF
     git -C "$SHADOW_REPO" config i18n.commitencoding utf-8
     git -C "$SHADOW_REPO" config i18n.logoutputencoding utf-8
 
-    # fsmonitor と untrackedCache を有効化（大規模リポのスキャン高速化）
-    git -C "$SHADOW_REPO" config core.fsmonitor true
-    git -C "$SHADOW_REPO" config core.untrackedcache true
-
     # gc 設定（リポ肥大化防止）
     git -C "$SHADOW_REPO" config gc.auto 100
     git -C "$SHADOW_REPO" config gc.autoPackLimit 4
@@ -218,6 +214,26 @@ EXCLUDE_EOF
   CURRENT_WORKTREE=$(git -C "$SHADOW_REPO" config --get core.worktree 2>/dev/null)
   if [ "$CURRENT_WORKTREE" != "$WORKSPACE_ROOT" ]; then
     git -C "$SHADOW_REPO" config core.worktree "$WORKSPACE_ROOT"
+  fi
+
+  # --- fsmonitor / untrackedCache の無効化（初回のみ） ---
+  # core.worktree を付け替えられたリポジトリでは index に残った fsmonitor トークンが
+  # 別ワークツリー由来になり、status/add が変更を無言で取りこぼす（実測 0/548 件）。
+  # --unset ではなく false を明示するのは、ユーザーの global config で有効化されていると
+  # local を消しただけでは継承されてしまうため。untracked cache は設定を落としても index
+  # 拡張が残る（unset = keep）ので update-index で拡張ごと削除する。
+  # マーカーを立てるのは 3 つとも成功したときだけ。ロック競合等で失敗したまま
+  # 済み扱いにすると、二度と再試行されず取りこぼしが恒久化する。
+  # stderr は握り潰さず checkpoint.log へ流す（このサブシェルは冒頭で 2>>LOG_FILE 済み）。
+  FSMONITOR_MARKER="$SHADOW_REPO/.fsmonitor-disabled"
+  if [ ! -f "$FSMONITOR_MARKER" ]; then
+    if git -C "$SHADOW_REPO" config core.fsmonitor false \
+      && git -C "$SHADOW_REPO" config core.untrackedcache false \
+      && git -C "$SHADOW_REPO" update-index --no-fsmonitor --no-untracked-cache; then
+      echo 1 > "$FSMONITOR_MARKER"
+    else
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - Failed to disable fsmonitor; will retry next time" >&2
+    fi
   fi
 
   # --- config.json の読み込み ---
@@ -279,6 +295,13 @@ $USER_PROMPT"
 
   # ステージングエリアに変更がなければコミットをスキップ
   if git -C "$SHADOW_REPO" diff --cached --quiet 2>/dev/null; then
+    # ワークツリーには差分があるのに何もステージされないのは、add -A が変更を
+    # 取りこぼしている兆候（fsmonitor の不整合で実際に起きた）。無変更のプロンプトと
+    # 区別がつかないまま無言で終わると、数週間気付かれないまま壊れ続ける。
+    DIRTY_COUNT=$(git -C "$SHADOW_REPO" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${DIRTY_COUNT:-0}" -gt 0 ]; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - WARN staged nothing while the workspace has $DIRTY_COUNT changed path(s)" >&2
+    fi
     exit 0
   fi
 

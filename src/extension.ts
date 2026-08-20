@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { saveSnapshot } from './commands/saveSnapshot';
-import { restoreSnapshot } from './commands/restoreSnapshot';
+import { restoreSnapshot, restoreWithWorktreeGuard } from './commands/restoreSnapshot';
 import { deleteSnapshots, deleteClaudeSnapshots } from './commands/deleteSnapshots';
 import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem, SnapshotFolderTreeItem } from './views/snapshotTreeProvider';
 import { SnapshotInputViewProvider } from './views/snapshotInputViewProvider';
@@ -290,19 +290,10 @@ const restoreSnapshotItem = async (item: SnapshotTreeItem): Promise<void> => {
     }
   }
 
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: 'Restoring snapshot...',
-      cancellable: false,
-    },
-    async () => {
-      await shadowGitService.restoreSnapshot(item.snapshot.id);
-
-      vscode.window.showInformationMessage(
-        `Snapshot restored: ${item.snapshot.description}`
-      );
-    }
+  await restoreWithWorktreeGuard(
+    shadowGitService,
+    item.snapshot.id,
+    item.snapshot.description
   );
 };
 

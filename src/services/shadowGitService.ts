@@ -1,12 +1,25 @@
 import simpleGit, { SimpleGit } from 'simple-git';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import * as vscode from 'vscode';
 import { SnapshotMetadata, ShadowRepoConfig, DiffFileInfo, DiffFileStatus } from '../types';
 import { SHADOW_REPO_BASE_PATH } from '../utils/constants';
 import { generateRepoIdentifier } from '../utils/hashUtils';
 import { writeExcludePatterns } from '../utils/excludes';
 import { writeConfigFile } from '../utils/configFile';
+
+const execFileAsync = promisify(execFile);
+
+// シャドウリポジトリが別のワークスペースに紐付いていて復元を拒否したことを表す。
+// 呼び出し側は追跡先をユーザーに提示して明示的な確認を取る。
+export class WorktreeMismatchError extends Error {
+  constructor(readonly trackedPath: string) {
+    super(`Shadow repository is bound to ${trackedPath}`);
+    this.name = 'WorktreeMismatchError';
+  }
+}
 
 export class ShadowGitService {
   private config: ShadowRepoConfig;
@@ -39,45 +52,53 @@ export class ShadowGitService {
     return path.join(this.config.shadowRepoPath, '.favorites');
   }
 
+  // shadow repo が外側の git 環境に影響されないよう、git 実行に必要な
+  // 環境変数のみを allowlist で渡す。GIT_* を除外することで Dev Container
+  // 対応を維持しつつ、simple-git 3.36+ の unsafe env ブロック
+  // (EDITOR / PAGER / SSH_ASKPASS / git_* 等) を回避する。
+  private static readonly allowedEnvKeys = [
+    'PATH',
+    'HOME',
+    'USER',
+    'USERNAME',
+    'USERPROFILE',
+    'LANG',
+    'LC_ALL',
+    'TMPDIR',
+    'TEMP',
+    'TMP',
+    'SystemRoot',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'PATHEXT',
+  ];
+
+  private static sanitizedEnv = (): NodeJS.ProcessEnv => {
+    const env: NodeJS.ProcessEnv = {};
+    for (const key of ShadowGitService.allowedEnvKeys) {
+      const value = process.env[key];
+      if (value !== undefined) {
+        env[key] = value;
+      }
+    }
+    return env;
+  };
+
   private getGit = (): SimpleGit => {
     if (!this.git) {
-      // shadow repo が外側の git 環境に影響されないよう、git 実行に必要な
-      // 環境変数のみを allowlist で渡す。GIT_* を除外することで Dev Container
-      // 対応を維持しつつ、simple-git 3.36+ の unsafe env ブロック
-      // (EDITOR / PAGER / SSH_ASKPASS / git_* 等) を回避する。
-      const allowedEnvKeys = [
-        'PATH',
-        'HOME',
-        'USER',
-        'USERNAME',
-        'USERPROFILE',
-        'LANG',
-        'LC_ALL',
-        'TMPDIR',
-        'TEMP',
-        'TMP',
-        'SystemRoot',
-        'APPDATA',
-        'LOCALAPPDATA',
-        'PATHEXT',
-      ];
-      const sanitizedEnv: NodeJS.ProcessEnv = {};
-      for (const key of allowedEnvKeys) {
-        const value = process.env[key];
-        if (value !== undefined) {
-          sanitizedEnv[key] = value;
-        }
-      }
-
       this.git = simpleGit({
         baseDir: this.config.shadowRepoPath,
         binary: 'git',
         maxConcurrentProcesses: 1,
-        config: [],
+        // 保存された core.worktree ではなく毎回このワークスペースを指して実行する。
+        // 保存値を読み取り操作のたびに書き換えると、それが「最後にこのリポジトリを
+        // 使ったワークスペース」の記録として使えなくなり、restore 前の検査が
+        // 直前の読み取りで素通りしてしまう。
+        config: [`core.worktree=${this.workspacePath}`],
         timeout: {
           block: 30000, // 30 seconds timeout for blocking operations
         },
-      }).env(sanitizedEnv);
+      }).env(ShadowGitService.sanitizedEnv());
     }
     return this.git;
   };
@@ -171,20 +192,6 @@ export class ShadowGitService {
       // Clean up any stale lock files first
       await this.removeLockFile();
 
-      // 既存のリポジトリがある場合、core.worktree が正しく設定されているか確認
-      const git = this.getGit();
-      await this.retryGitOperation(async () => {
-        try {
-          const currentWorktree = await git.raw(['config', '--get', 'core.worktree']);
-          if (currentWorktree.trim() !== this.workspacePath) {
-            await git.addConfig('core.worktree', this.workspacePath);
-          }
-        } catch {
-          // core.worktree が設定されていない場合は設定する
-          await git.addConfig('core.worktree', this.workspacePath);
-        }
-      });
-
       // 除外パターンを更新（設定変更を反映）
       const config = vscode.workspace.getConfiguration('work-checkpoints');
       const additionalPatterns = config.get<string[]>('ignorePatterns', []);
@@ -209,11 +216,67 @@ export class ShadowGitService {
       await writeExcludePatterns(this.config.shadowRepoPath, additionalPatterns);
     }
 
+    await this.disableFsMonitor();
+
     // Sync VS Code settings to config.json for CLI consumers
     try {
       await this.syncConfigFile();
     } catch (error) {
       console.error('[work-checkpoints] Failed to sync config:', error);
+    }
+  };
+
+  // core.worktree を付け替えられたシャドウリポジトリでは index に残った fsmonitor トークンが
+  // 別ワークツリー由来になり、status/add が変更を無言で取りこぼす。シャドウリポジトリは
+  // CLI プラグインと共有されるため、どのクライアントから触られても無効化されるようにする。
+  // --unset ではなく false を明示するのは、ユーザーの global config で有効化されていると
+  // local を消しただけでは継承されてしまうため。untracked cache は設定を落としても index
+  // 拡張が残る（unset = keep）ので update-index で拡張ごと削除する。
+  // マーカーの名前は save-checkpoint.sh と共有。
+  private disableFsMonitor = async (): Promise<void> => {
+    const marker = path.join(this.config.shadowRepoPath, '.fsmonitor-disabled');
+    try {
+      await fs.access(marker);
+      return;
+    } catch {
+      // まだ無効化していない
+    }
+
+    // simple-git は core.fsmonitor に触れるコマンドを一律で拒否する（任意コマンド実行の
+    // 経路になりうるため）。ここでやりたいのは解除だけなので、生の git を直接叩く。
+    const run = async (args: string[]): Promise<void> => {
+      await execFileAsync('git', ['-C', this.config.shadowRepoPath, ...args], {
+        env: ShadowGitService.sanitizedEnv(),
+      });
+    };
+
+    for (const key of ['core.fsmonitor', 'core.untrackedcache']) {
+      try {
+        await run(['config', key, 'false']);
+      } catch (error) {
+        console.error(`[work-checkpoints] Failed to disable ${key}:`, error);
+        vscode.window.showWarningMessage(
+          `Work Checkpoints could not disable ${key} for this repository. Snapshots may omit files until this succeeds.`
+        );
+        return;
+      }
+    }
+    try {
+      await run(['update-index', '--no-fsmonitor', '--no-untracked-cache']);
+    } catch (error) {
+      // マーカーを書かずに戻るので次回再試行される。取りこぼしは無言で起きるため、
+      // ログだけでなくユーザーにも見える形で知らせる。
+      console.error('[work-checkpoints] Failed to drop fsmonitor index extensions:', error);
+      vscode.window.showWarningMessage(
+        'Work Checkpoints could not disable fsmonitor for this repository. Snapshots may omit files until this succeeds.'
+      );
+      return;
+    }
+
+    try {
+      await fs.writeFile(marker, '1');
+    } catch (error) {
+      console.error('[work-checkpoints] Failed to write fsmonitor marker:', error);
     }
   };
 
@@ -234,6 +297,7 @@ export class ShadowGitService {
     customDescription?: string
   ): Promise<SnapshotMetadata> => {
     await this.initializeIfNeeded();
+    await this.claimWorktreeBinding();
 
     const git = this.getGit();
 
@@ -417,8 +481,68 @@ export class ShadowGitService {
     }
   };
 
-  restoreSnapshot = async (snapshotId: string): Promise<void> => {
+  // 保存された core.worktree は「最後にこのシャドウリポジトリを使ったワークスペース」の記録。
+  // 書き込み操作からのみ更新する（読み取りで書き換えると restore 前の検査が無意味になる）。
+  private claimWorktreeBinding = async (): Promise<void> => {
+    await this.retryGitOperation(async () => {
+      await this.getGit().addConfig('core.worktree', this.workspacePath);
+    });
+  };
+
+  private readWorktreeBinding = async (): Promise<string> => {
+    try {
+      // --local でリポジトリの設定ファイルだけを読む。getGit() が毎回渡している
+      // -c core.worktree=... は command スコープとして --get に見えてしまうため。
+      return (await this.getGit().raw(['config', '--local', '--get', 'core.worktree'])).trim();
+    } catch (error) {
+      // git config --get は「キーが無い」を exit 1 で返す。それ以外（設定ファイル破損、
+      // タイムアウト等）を未設定と同一視すると、検査を素通りさせて破壊的な復元を許してしまう。
+      const exitCode = (error as { exitCode?: number }).exitCode;
+      if (exitCode === 1) {
+        return '';
+      }
+      throw error;
+    }
+  };
+
+  // シャドウリポジトリが別のワークスペースを指しているときに復元すると、そのワークスペースの
+  // 内容でこのワークスペースを丸ごと上書きしてしまう。restore は clean -fd + reset --hard なので
+  // 未追跡ファイルまで消える。パスはシンボリックリンク差（macOS の /var と /private/var）を
+  // 吸収するため realpath 化してから比較する。
+  private assertWorktreeBinding = async (): Promise<void> => {
+    const configured = await this.readWorktreeBinding();
+    if (!configured) {
+      return; // 未設定 = このリポジトリはまだ誰のものでもない
+    }
+
+    const resolve = async (target: string, label: string): Promise<string> => {
+      try {
+        return await fs.realpath(target);
+      } catch (error) {
+        // 解決できないまま比較すると、同じディレクトリを別物と誤判定して正当な復元まで
+        // 拒否しうる。誤検知を黙って積み上げるとユーザーが force を常用するようになる。
+        console.error(`[work-checkpoints] Failed to resolve ${label} path ${target}:`, error);
+        return target;
+      }
+    };
+
+    const [tracked, current] = await Promise.all([
+      resolve(configured, 'tracked'),
+      resolve(this.workspacePath, 'current'),
+    ]);
+    if (tracked !== current) {
+      throw new WorktreeMismatchError(configured);
+    }
+  };
+
+  restoreSnapshot = async (snapshotId: string, force = false): Promise<void> => {
+    // claimWorktreeBinding が記録を上書きする前に検査する
+    if (!force) {
+      await this.assertWorktreeBinding();
+    }
+
     await this.initializeIfNeeded();
+    await this.claimWorktreeBinding();
 
     const git = this.getGit();
 

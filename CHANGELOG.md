@@ -4,6 +4,48 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [1.3.1] - 2026-08-20
+
+### Fixed
+- Restoring a checkpoint could overwrite a **different** workspace. A shadow repository is bound to one
+  workspace through `core.worktree`, and every client rewrites that binding on save — so with several
+  `git worktree` checkouts (or several clones) of one repository, `restore-checkpoint.sh` checked out into
+  whichever workspace happened to save last. Restore now verifies the binding and refuses on a mismatch;
+  `WORK_CHECKPOINTS_FORCE_WORKTREE=1` overrides it. The VS Code extension shows a modal confirmation
+  instead, and performs its check *before* re-pointing `core.worktree` (previously it would have rewritten
+  the evidence and then `clean -fd` + `reset --hard` the workspace).
+- Snapshots could silently omit most of the changed files. `core.fsmonitor` caches "what changed since
+  last time" against a watcher bound to one directory; once the shadow repository was re-pointed at another
+  workspace the cached token became meaningless and `git add -A` staged almost nothing, with no log entry.
+  Measured on a real repository: `git status` reported 0 changed files with fsmonitor enabled versus 548
+  with it disabled. The shadow repository now sets `core.fsmonitor=false` and `core.untrackedcache=false`
+  explicitly (a plain `--unset` is not enough — the value is inherited from the user's global config, and
+  an unset `core.untrackedCache` means *keep*) and drops the corresponding index extensions. Existing
+  shadow repositories are repaired once, on first use, by any client.
+- `restore-checkpoint.sh` reported success while doing nothing when `core.worktree` was unset: the
+  checkout landed inside the shadow repository itself and the workspace was untouched. It now binds the
+  repository to the current workspace first.
+- A failed `--force` re-bind is no longer ignored. Previously `git config core.worktree` could fail (it
+  takes a lock, and the VS Code extension does not participate in the plugins' mutex) and the checkout
+  would then still run against the stale binding — overwriting another workspace while printing
+  "Successfully restored checkpoint".
+
+### Added
+- The save hook now logs a warning when `git add -A` stages nothing while the workspace has changed
+  files. That combination is what the fsmonitor bug looked like from the outside, and it previously
+  exited silently — which is why it went unnoticed for weeks.
+- Restore refusals are recorded in `checkpoint.log`; previously only successful restores were.
+
+### Changed
+- The Claude Code and Codex plugins no longer enable `core.fsmonitor` / `core.untrackedcache` on new
+  shadow repositories. Scans are slower on large monorepos but no longer lose files.
+- The VS Code extension no longer rewrites `core.worktree` on read-only operations (listing a snapshot's
+  changed files, opening a diff). Doing so destroyed the record of which workspace a shadow repository
+  belongs to, which the restore check depends on; git commands now receive the workspace path per
+  invocation instead. Only saving and restoring update the stored binding.
+- Bumped `@vscode/test-electron` to 3.x and `@vscode/test-cli` to 0.0.15 — the pinned versions could not
+  launch VS Code 1.134, so the test suite did not run at all.
+
 ## [1.3.0] - 2026-05-01
 
 ### Added
