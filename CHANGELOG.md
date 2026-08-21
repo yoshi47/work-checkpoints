@@ -48,6 +48,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Bumped `@vscode/test-electron` to 3.x and `@vscode/test-cli` to 0.0.15 — the pinned versions could not
   launch VS Code 1.134, so the test suite did not run at all.
 
+### Known limitations
+- **`git worktree` users cannot restore reliably yet.** All worktrees of one repository still share a
+  single shadow repository, so a checkpoint saved from one worktree and restored from another is now
+  *refused* rather than silently destroying the other workspace. That is the intended behaviour of this
+  release — it stops the damage, it does not fix the cause. Overriding with
+  `WORK_CHECKPOINTS_FORCE_WORKTREE=1` restores the other worktree's content into the current one, so it
+  is an escape hatch, not a workaround. Per-worktree shadow repositories land in 1.4.0.
+- Restoring a **single file** from the tree view does not perform the workspace check; only full
+  checkpoint restores do.
+
 ## [1.3.0] - 2026-05-01
 
 ### Added

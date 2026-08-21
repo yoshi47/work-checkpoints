@@ -394,7 +394,9 @@ export class ShadowGitService {
   };
 
   getSnapshotDiffFiles = async (snapshotId: string): Promise<DiffFileInfo[]> => {
-    // core.worktree が正しいワークスペースを指すようにする
+    // 読み取り経路なので binding（core.worktree）は書き換えない。書き換えると
+    // 「最後にこのリポジトリを使ったワークスペース」の記録が消え、restore 前の検査が
+    // 直前の読み取りで素通りする。git にはこのワークスペースを GIT_WORK_TREE で渡している。
     await this.initializeIfNeeded();
 
     const git = this.getGit();
@@ -505,8 +507,8 @@ export class ShadowGitService {
 
   private readWorktreeBinding = async (): Promise<string> => {
     try {
-      // --local でリポジトリの設定ファイルだけを読む。getGit() が毎回渡している
-      // -c core.worktree=... は command スコープとして --get に見えてしまうため。
+      // --local でリポジトリの設定ファイルだけを読む。--get はユーザーの global config も
+      // 見るので、そこに core.worktree があると他人の設定を binding と誤認する。
       return (await this.getGit().raw(['config', '--local', '--get', 'core.worktree'])).trim();
     } catch (error) {
       if (isConfigKeyMissing(error)) {
