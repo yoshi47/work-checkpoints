@@ -3,9 +3,30 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import simpleGit from 'simple-git';
-import { ShadowGitService } from '../../services/shadowGitService';
+import { execFileSync } from 'child_process';
+import {
+  ShadowGitService,
+  WorktreeMismatchError,
+  isConfigKeyMissing,
+} from '../../services/shadowGitService';
 import { SHADOW_REPO_BASE_PATH } from '../../utils/constants';
 import { generateRepoIdentifier } from '../../utils/hashUtils';
+
+suite('isConfigKeyMissing', () => {
+  // exit 1 だけが「キーが無い」。破損やタイムアウトを未設定と同一視すると
+  // worktree の検査が無言で消え、破壊的な復元を素通りさせる。
+  test('should treat exit code 1 as a missing key', () => {
+    assert.strictEqual(isConfigKeyMissing({ exitCode: 1 }), true);
+  });
+
+  test('should not treat other git failures as a missing key', () => {
+    assert.strictEqual(isConfigKeyMissing({ exitCode: 128 }), false);
+    assert.strictEqual(isConfigKeyMissing({ exitCode: 0 }), false);
+    assert.strictEqual(isConfigKeyMissing(new Error('timeout')), false);
+    assert.strictEqual(isConfigKeyMissing(undefined), false);
+    assert.strictEqual(isConfigKeyMissing(null), false);
+  });
+});
 
 suite('ShadowGitService', () => {
   let tempDir: string;
@@ -358,6 +379,203 @@ suite('ShadowGitService', () => {
         .then(() => true)
         .catch(() => false);
       assert.strictEqual(exists, false);
+    });
+
+    test('should reject when core.worktree points to another workspace', async () => {
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      const otherDir = path.join(tempDir, 'other-workspace');
+      await fs.mkdir(otherDir, { recursive: true });
+      await simpleGit(shadowGitService.shadowRepoPath).addConfig('core.worktree', otherDir);
+
+      await assert.rejects(
+        () => shadowGitService.restoreSnapshot(snapshot.id),
+        (error: Error) => error instanceof WorktreeMismatchError
+      );
+    });
+
+    test('should still reject after a read-only operation touched the shadow repo', async () => {
+      // ツリービューはスナップショットを展開した時点で差分を取りに行く。その経路が
+      // core.worktree を書き換えてしまうと、直後の restore ではガードが素通りする。
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      const otherDir = path.join(tempDir, 'other-workspace');
+      await fs.mkdir(otherDir, { recursive: true });
+      await simpleGit(shadowGitService.shadowRepoPath).addConfig('core.worktree', otherDir);
+
+      await shadowGitService.getSnapshotDiffFiles(snapshot.id);
+
+      await assert.rejects(
+        () => shadowGitService.restoreSnapshot(snapshot.id),
+        (error: Error) => error instanceof WorktreeMismatchError
+      );
+    });
+
+    test('should not touch the workspace when rejecting a mismatch', async () => {
+      const snapshot = await shadowGitService.createSnapshot('main');
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified content');
+
+      const otherDir = path.join(tempDir, 'other-workspace');
+      await fs.mkdir(otherDir, { recursive: true });
+      await simpleGit(shadowGitService.shadowRepoPath).addConfig('core.worktree', otherDir);
+
+      await assert.rejects(
+        () => shadowGitService.restoreSnapshot(snapshot.id),
+        (error: Error) => error instanceof WorktreeMismatchError
+      );
+
+      const content = await fs.readFile(path.join(workspaceDir, 'file1.txt'), 'utf-8');
+      assert.strictEqual(content, 'modified content');
+    });
+
+    test('should take over the binding when this workspace saves', async () => {
+      // save した側が所有者になれないと、そのワークスペース自身の restore まで
+      // 拒否され、ユーザーが force を常用するようになる（＝ガードの無効化）。
+      const otherDir = path.join(tempDir, 'other-workspace');
+      await fs.mkdir(otherDir, { recursive: true });
+      await shadowGitService.createSnapshot('main');
+      await simpleGit(shadowGitService.shadowRepoPath).addConfig('core.worktree', otherDir);
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'saved by this workspace');
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified afterwards');
+      await shadowGitService.restoreSnapshot(snapshot.id);
+
+      const content = await fs.readFile(path.join(workspaceDir, 'file1.txt'), 'utf-8');
+      assert.strictEqual(content, 'saved by this workspace');
+    });
+
+    test('should proceed when forced despite a mismatch', async () => {
+      const snapshot = await shadowGitService.createSnapshot('main');
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified content');
+
+      const otherDir = path.join(tempDir, 'other-workspace');
+      await fs.mkdir(otherDir, { recursive: true });
+      await simpleGit(shadowGitService.shadowRepoPath).addConfig('core.worktree', otherDir);
+
+      await shadowGitService.restoreSnapshot(snapshot.id, true);
+
+      const content = await fs.readFile(path.join(workspaceDir, 'file1.txt'), 'utf-8');
+      assert.strictEqual(content, 'content1');
+    });
+
+    test('should tolerate a symlinked-equivalent core.worktree', async () => {
+      // macOS の mkdtemp は /var/... を返すが realpath は /private/var/...。
+      // 素朴な文字列比較だと全ての restore が誤って拒否される。
+      const snapshot = await shadowGitService.createSnapshot('main');
+
+      const linkedDir = path.join(tempDir, 'workspace-link');
+      await fs.symlink(workspaceDir, linkedDir, 'dir');
+      await simpleGit(shadowGitService.shadowRepoPath).addConfig('core.worktree', linkedDir);
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified content');
+      await shadowGitService.restoreSnapshot(snapshot.id);
+
+      const content = await fs.readFile(path.join(workspaceDir, 'file1.txt'), 'utf-8');
+      assert.strictEqual(content, 'content1');
+    });
+  });
+
+  suite('getSnapshotDiffFiles', () => {
+    test('should diff against this workspace even when the binding points elsewhere', async () => {
+      // 読み取りは保存された binding ではなく毎回このワークスペースを見る必要がある。
+      // 保存値に従うと、ツリービューの差分に別ワークスペースの中身が出る。
+      const snapshot = await shadowGitService.createSnapshot('main');
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'modified content');
+
+      const otherDir = path.join(tempDir, 'other-workspace');
+      await fs.mkdir(otherDir, { recursive: true });
+      await simpleGit(shadowGitService.shadowRepoPath).addConfig('core.worktree', otherDir);
+
+      const files = await shadowGitService.getSnapshotDiffFiles(snapshot.id);
+      const target = files.find((entry) => entry.file === 'file1.txt');
+
+      assert.ok(target, 'file1.txt should appear in the diff');
+      assert.strictEqual(target.status, 'modified');
+    });
+  });
+
+  suite('disableFsMonitor', () => {
+    test('should disable fsmonitor on an existing shadow repo', async () => {
+      // 先に初期化してからシェルプラグイン相当の設定を仕込み、次の操作で修復されることを見る
+      await shadowGitService.createSnapshot('main');
+
+      // simple-git は core.fsmonitor の設定自体を拒否するため、仕込みは生 git で行う
+      const shadowRepo = shadowGitService.shadowRepoPath;
+      execFileSync('git', ['-C', shadowRepo, 'config', 'core.fsmonitor', 'true']);
+      execFileSync('git', ['-C', shadowRepo, 'config', 'core.untrackedcache', 'true']);
+      await fs.rm(path.join(shadowRepo, '.fsmonitor-disabled'), { force: true });
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      await shadowGitService.createSnapshot('main');
+
+      const readConfig = (key: string): string => {
+        try {
+          return execFileSync('git', ['-C', shadowRepo, 'config', '--local', '--get', key], {
+            encoding: 'utf-8',
+          }).trim();
+        } catch {
+          return '';
+        }
+      };
+
+      // global config で有効化されていても効く必要があるので、空ではなく false を確認する
+      assert.strictEqual(readConfig('core.fsmonitor'), 'false');
+      assert.strictEqual(readConfig('core.untrackedcache'), 'false');
+
+      const markerExists = await fs
+        .access(path.join(shadowRepo, '.fsmonitor-disabled'))
+        .then(() => true)
+        .catch(() => false);
+      assert.strictEqual(markerExists, true);
+    });
+
+    test('should drop the fsmonitor index extensions, not just the config', async () => {
+      // config を false にしても index 拡張は残る。残ったままだと status/add の
+      // 取りこぼしが続くので、拡張が消えたことをバイト列で確認する。
+      await shadowGitService.createSnapshot('main');
+
+      const shadowRepo = shadowGitService.shadowRepoPath;
+      execFileSync('git', ['-C', shadowRepo, 'config', 'core.fsmonitor', 'true']);
+      execFileSync('git', ['-C', shadowRepo, 'config', 'core.untrackedcache', 'true']);
+      execFileSync('git', ['-C', shadowRepo, 'add', '-A']);
+      await fs.rm(path.join(shadowRepo, '.fsmonitor-disabled'), { force: true });
+
+      const indexPath = path.join(shadowRepo, '.git', 'index');
+      const seeded = await fs.readFile(indexPath);
+      assert.ok(
+        seeded.includes('FSMN') || seeded.includes('UNTR'),
+        'fixture did not produce the index extensions this test is about'
+      );
+
+      // createSnapshot ではなく initializeIfNeeded で切る。add を挟むと
+      // config=false 下の書き込みが拡張を落としてしまい、修正が無くても緑になる。
+      await shadowGitService.initializeIfNeeded();
+
+      const repaired = await fs.readFile(indexPath);
+      assert.ok(!repaired.includes('FSMN'), 'fsmonitor index extension survived');
+      assert.ok(!repaired.includes('UNTR'), 'untracked cache index extension survived');
+    });
+
+    test('should not re-run once the marker is present', async () => {
+      // マーカーはプロンプトごとに 3 プロセス起動しないためのもの。裏返しとして、
+      // 一度無効化したあとに誰かが fsmonitor を戻しても直しに行かない。
+      // 現状それをするのは work-checkpoints の旧版だけなので許容している。
+      await shadowGitService.createSnapshot('main');
+
+      const shadowRepo = shadowGitService.shadowRepoPath;
+      execFileSync('git', ['-C', shadowRepo, 'config', 'core.fsmonitor', 'true']);
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      await shadowGitService.createSnapshot('main');
+
+      const fsmonitor = execFileSync(
+        'git',
+        ['-C', shadowRepo, 'config', '--local', '--get', 'core.fsmonitor'],
+        { encoding: 'utf-8' }
+      ).trim();
+      assert.strictEqual(fsmonitor, 'true');
     });
   });
 

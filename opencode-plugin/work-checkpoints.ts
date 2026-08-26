@@ -68,6 +68,32 @@ export const WorkCheckpointsPlugin: Plugin = async ({ $, worktree }) => {
       await $`git -C ${shadowRepo} config i18n.logoutputencoding utf-8`.quiet()
     }
     await $`git -C ${shadowRepo} config core.worktree ${gitRoot}`.quiet()
+
+    // core.worktree を付け替えられたシャドウリポジトリでは index に残った fsmonitor
+    // トークンが別ワークツリー由来になり、status/add が変更を無言で取りこぼす。
+    // シャドウリポジトリは他クライアントと共有されるため、ここでも無効化する。
+    // --unset ではなく false を明示するのは、global config で有効化されていると
+    // local を消しただけでは継承されてしまうため。マーカー名は save-checkpoint.sh と共有。
+    // マーカーを立てるのは 3 つとも成功したときだけ。index.lock 等で失敗したまま
+    // 済み扱いにすると、二度と再試行されず取りこぼしが恒久化する。
+    const fsmonitorMarker = `${shadowRepo}/.fsmonitor-disabled`
+    if (!(await Bun.file(fsmonitorMarker).exists())) {
+      const results = [
+        await $`git -C ${shadowRepo} config core.fsmonitor false`.quiet().nothrow(),
+        await $`git -C ${shadowRepo} config core.untrackedcache false`.quiet().nothrow(),
+        await $`git -C ${shadowRepo} update-index --no-fsmonitor --no-untracked-cache`
+          .quiet()
+          .nothrow(),
+      ]
+      const failed = results.find((result) => result.exitCode !== 0)
+      if (failed) {
+        console.error(
+          `[work-checkpoints] Failed to disable fsmonitor (exit ${failed.exitCode}): ${failed.stderr.toString().trim()}`
+        )
+      } else {
+        await Bun.write(fsmonitorMarker, "1")
+      }
+    }
   }
 
   // Wait for git lock file to be released (max 3 seconds)

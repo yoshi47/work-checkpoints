@@ -17,3 +17,5 @@ codex-plugin/**
 .idea/**
 .github/**
 .claude/**
+scripts/**
+docs/**

@@ -131,6 +131,10 @@ Work Checkpoints creates a separate "shadow" Git repository to store your snapsh
 - Snapshots are stored in `~/.work-checkpoints/`
 - Each project has its own shadow repository
 - Your main Git history is never affected
+- `core.fsmonitor` and `core.untrackedcache` are explicitly disabled in the shadow repository.
+  They cache "what changed since last time" against a watcher bound to one directory, which does not
+  survive the shadow repository being re-pointed at another workspace — the result is a snapshot that
+  silently omits files. Disabling them makes a scan slower but complete.
 
 ## Claude Code Plugin
 
@@ -171,6 +175,31 @@ Check the log file for errors:
 ```
 
 Where `<repo-id>` is a hash derived from the repository's remote URL (or workspace path if no remote is configured).
+
+#### "This checkpoint repository last tracked a different workspace"
+
+A shadow repository points at exactly one workspace via `core.worktree`, and that binding is rewritten by
+whichever client saved last. If you use several clones — or several `git worktree` checkouts — of the same
+repository, they currently share one shadow repository, so its history may hold snapshots taken in a
+*different* workspace. Restoring one of those would overwrite your current workspace with that other
+workspace's files, so restore refuses instead.
+
+```bash
+# what does this shadow repository actually contain?
+git -C ~/.work-checkpoints/<repo-id> log --oneline
+
+# throw the mixed history away (soft delete — recorded in .deleted, objects are kept until gc)
+delete-checkpoints.sh --all
+
+# restore anyway, knowing the files may come from another workspace
+WORK_CHECKPOINTS_FORCE_WORKTREE=1 restore-checkpoint.sh <checkpoint-id>
+```
+
+To find which workspace a shadow repository is bound to:
+
+```bash
+git -C ~/.work-checkpoints/<repo-id> config --get core.worktree
+```
 
 ## OpenCode Plugin
 
