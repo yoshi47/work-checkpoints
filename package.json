@@ -384,7 +384,10 @@
     "esbuild-watch": "npm run esbuild-base -- --sourcemap --watch",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "dev:on": "node scripts/dev-channel.js on",
+    "dev:off": "node scripts/dev-channel.js off",
+    "dev:status": "node scripts/dev-channel.js status"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
