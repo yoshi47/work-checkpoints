@@ -1,0 +1,15 @@
+{
+  "name": "work-checkpoints",
+  "version": "1.3.1",
+  "description": "Automatically save work checkpoints when you submit a prompt",
+  "author": {
+    "name": "kururu6966"
+  },
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Work Checkpoints",
+    "shortDescription": "Snapshot your workspace on every prompt",
+    "category": "Developer Tools"
+  }
+}

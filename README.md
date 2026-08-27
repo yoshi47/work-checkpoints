@@ -237,35 +237,25 @@ Use the same checkpoint functionality in OpenAI's [Codex CLI](https://developers
 ### Installation
 
 ```bash
-# 1) Copy hook scripts to a stable location
-mkdir -p ~/.codex/hooks/work-checkpoints
-cp codex-plugin/scripts/*.sh ~/.codex/hooks/work-checkpoints/
-chmod +x ~/.codex/hooks/work-checkpoints/*.sh
-
-# 2) Install the hooks definition
-#    (skip this step and merge by hand if ~/.codex/hooks.json already exists)
-cp codex-plugin/hooks/hooks.json ~/.codex/hooks.json
+codex plugin marketplace add yoshi47/work-checkpoints
+codex plugin add work-checkpoints@work-checkpoints-plugin
 ```
 
-Then enable the feature flag by adding the following to `~/.codex/config.toml`. **If a `[features]` table already exists, add only the `codex_hooks = true` line under it** — TOML rejects duplicate tables.
+Then start Codex interactively once and approve the hook when it asks — newly installed plugin hooks stay dormant until reviewed.
 
-```toml
-[features]
-codex_hooks = true
-```
-
-See [`codex-plugin/README.md`](codex-plugin/README.md) for project-local install and more details.
+Already using the old manual-copy install? See the migration steps in [`codex-plugin/README.md`](codex-plugin/README.md#migrating-from-the-manual-install).
 
 ### Requirements
 
-- A Codex CLI version that supports the `UserPromptSubmit` hook (see the [official hooks docs](https://developers.openai.com/codex/hooks))
-- The `codex_hooks` feature flag while it remains gated
+- A Codex CLI version with plugin and hook support (verified on 0.149.1)
+- `[features] hooks = true` in `~/.codex/config.toml`
 
 ### How It Works
 
 - Uses the `UserPromptSubmit` hook to save a checkpoint on each prompt submission
 - Same shadow repository as the VSCode extension and other plugins (`~/.work-checkpoints/`)
 - Commit messages follow the format: `[Codex] <branch> @ <timestamp>`
+- Ships `restore-checkpoint` / `delete-checkpoints` as skills (Codex plugins have no slash commands)
 
 ### Troubleshooting
 
@@ -275,7 +265,7 @@ Same log file as the other plugins:
 ~/.work-checkpoints/<repo-id>/checkpoint.log
 ```
 
-If hooks don't fire, double-check `[features].codex_hooks = true` in `~/.codex/config.toml` and that the `UserPromptSubmit` entry is present in `~/.codex/hooks.json`.
+If hooks don't fire: confirm `[features] hooks = true` in `~/.codex/config.toml`, that `codex plugin list` shows the plugin installed and enabled, and that you approved the hook in an interactive session.
 
 ## Requirements
 

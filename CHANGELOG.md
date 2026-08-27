@@ -4,6 +4,18 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [Unreleased]
+
+### Changed
+- The Codex CLI integration is now a real Codex plugin. Install it with `codex plugin marketplace add` +
+  `codex plugin add` instead of copying scripts into `~/.codex/hooks/work-checkpoints/` and hand-writing a
+  hook entry. Existing users must migrate: install the plugin, approve its hook in an interactive Codex
+  session, then delete the old copy and its hook entry (see `codex-plugin/README.md`). Leaving the old hook
+  in place does not double-commit — the lock, the debounce, and the empty-stage check each prevent it — but
+  it does leave a second, failing hook wired to a path you no longer maintain.
+- `restore-checkpoint` and `delete-checkpoints` are now available inside Codex as skills. Codex plugins have
+  no slash-command capability, so they are skills rather than the commands the Claude Code plugin ships.
+
 ## [1.3.1] - 2026-08-20
 
 ### Fixed

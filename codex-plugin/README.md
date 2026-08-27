@@ -6,47 +6,52 @@ Shares the same `~/.work-checkpoints/<repo-id>/` storage as the VSCode extension
 
 ## Requirements
 
-- A version of Codex CLI that supports the `UserPromptSubmit` hook (see the [official hooks docs](https://developers.openai.com/codex/hooks))
+- A version of Codex CLI with plugin and hook support (verified on 0.149.1)
+- `[features] hooks = true` in `~/.codex/config.toml`
 - `git`, `bash`, `shasum`, and either `jq` or `python3` (already present on most macOS / Linux setups)
 
 ## Installation
 
-### 1. Copy the hook scripts
+```bash
+# Register this repository as a plugin marketplace
+codex plugin marketplace add yoshi47/work-checkpoints
+# ...or point at a local clone
+codex plugin marketplace add /path/to/work-checkpoints
+
+codex plugin add work-checkpoints@work-checkpoints-plugin
+```
+
+Then **start Codex interactively once and approve the hook**. Newly installed plugin hooks stay dormant until you review them — Codex shows a "Hooks need review" prompt, and until you accept it the checkpoint hook is silently skipped (including in `codex exec`). Approval is recorded as a `trusted_hash` under `[hooks.state]` in `~/.codex/config.toml`.
+
+Verify with:
 
 ```bash
-mkdir -p ~/.codex/hooks/work-checkpoints
-cp scripts/*.sh ~/.codex/hooks/work-checkpoints/
-chmod +x ~/.codex/hooks/work-checkpoints/*.sh
+codex plugin list   # work-checkpoints@work-checkpoints-plugin → installed, enabled
 ```
 
-### 2. Install the hooks definition
+### Migrating from the manual install
 
-Codex auto-loads `~/.codex/hooks.json` (and inline `[hooks]` tables in `~/.codex/config.toml`). Pick **one** representation per layer — Codex warns if both exist in the same layer.
-
-If you don't already have `~/.codex/hooks.json`, copy the bundled file:
+Earlier versions were installed by copying scripts into `~/.codex/hooks/work-checkpoints/` and declaring the hook by hand. **Install the plugin first, confirm it works, and only then remove the old copy** — the reverse order leaves you with no checkpoints at all if you forget a step, and the overlap is harmless (see below).
 
 ```bash
-cp hooks/hooks.json ~/.codex/hooks.json
+# 1. install as above, and approve the hook in an interactive session
+# 2. confirm a new "[Codex] ..." commit appears (see Troubleshooting for the shadow repo path)
+# 3. remove the old install
+rm -rf ~/.codex/hooks/work-checkpoints
+#    ...and delete the work-checkpoints UserPromptSubmit entry from
+#    ~/.codex/hooks.json or from the [[hooks.UserPromptSubmit]] tables in ~/.codex/config.toml
 ```
 
-If you already have `~/.codex/hooks.json`, merge the `UserPromptSubmit` entry from `hooks/hooks.json` into it manually.
+Running both at once does not double-commit: `save-checkpoint.sh` serializes concurrent invocations with a `mkdir` lock, the second one falls out on the 5-second debounce, and even past that window it exits without committing because `git add -A` stages nothing.
 
-### 3. Enable the feature flag
+### Updating
 
-Codex hooks are currently gated by a feature flag. Open `~/.codex/config.toml` and ensure it contains:
+`codex plugin add` copies the plugin into `~/.codex/plugins/cache/<marketplace>/<plugin>/<version>/`; it does not run from your working tree. After changing anything under `codex-plugin/`, reinstall:
 
-```toml
-[features]
-codex_hooks = true
+```bash
+codex plugin remove work-checkpoints@work-checkpoints-plugin
+codex plugin add work-checkpoints@work-checkpoints-plugin
 ```
-
-If a `[features]` table already exists, **add only the `codex_hooks = true` line under it** — do not paste a second `[features]` header (TOML rejects duplicate tables).
-
-`hooks/feature-flag.toml` in this directory contains the same snippet for reference.
-
-### Project-local install (optional)
-
-You can place `hooks.json` and `scripts/` under `<repo>/.codex/` instead. Project-local hooks only run after the project is marked trusted in Codex (untrusted projects still load user/system hooks). See the Codex docs for the trust workflow.
 
 ## How it works
 
@@ -55,6 +60,17 @@ You can place `hooks.json` and `scripts/` under `<repo>/.codex/` instead. Projec
 - Debounce: commits within 5 seconds of the previous one are skipped.
 - Concurrency: `mkdir`-based lock with a 60-second stale-lock recovery, identical to the Claude Code plugin.
 - Auto-cleanup: same retention logic as the other plugins, controlled by `WORK_CHECKPOINTS_RETENTION_DAYS` env var or `retentionDays` in `config.json`.
+
+## Skills
+
+The plugin ships two skills that Codex can invoke by name:
+
+| Skill | Purpose |
+|---|---|
+| `restore-checkpoint` | List checkpoints and restore the workspace to the one you pick. |
+| `delete-checkpoints` | List checkpoints and soft-delete by ID, by `[Codex]` prefix, by age, or all. |
+
+Codex plugins have no slash-command capability, so these are skills rather than commands (the Claude Code plugin ships the same two as `/restore-checkpoint` and `/delete-checkpoints`).
 
 ## Available scripts
 
@@ -73,5 +89,5 @@ The shadow repo is shared across plugins. To bulk-delete `[Claude]`-prefixed che
 ## Troubleshooting
 
 - Logs: `~/.work-checkpoints/<repo-id>/checkpoint.log`
-- Hook not firing? Verify `codex_hooks = true` is set under `[features]` in `~/.codex/config.toml`, and that `~/.codex/hooks.json` actually contains the `UserPromptSubmit` entry.
+- Hook not firing? In order: confirm `[features] hooks = true` in `~/.codex/config.toml`; confirm `codex plugin list` shows the plugin as installed and enabled; confirm you approved the hook in an interactive session (look for a `[hooks.state]` entry mentioning `work-checkpoints`); confirm no stale entry still points at `~/.codex/hooks/work-checkpoints/`.
 - See the [Codex hooks docs](https://developers.openai.com/codex/hooks) for the broader hook system.
