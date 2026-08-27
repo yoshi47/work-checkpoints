@@ -1,0 +1,12 @@
+{
+  "name": "work-checkpoints-plugin",
+  "interface": { "displayName": "Work Checkpoints" },
+  "plugins": [
+    {
+      "name": "work-checkpoints",
+      "source": { "source": "local", "path": "./codex-plugin" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Developer Tools"
+    }
+  ]
+}

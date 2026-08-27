@@ -14,6 +14,7 @@ node_modules/**
 claude-plugin/**
 codex-plugin/**
 .claude-plugin/**
+.agents/**
 .idea/**
 .github/**
 .claude/**
