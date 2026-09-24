@@ -207,28 +207,39 @@ Use the same checkpoint functionality in [OpenCode](https://opencode.ai/). Autom
 
 ### Installation
 
-Copy the plugin file to your OpenCode plugin directory:
+Requires OpenCode v2. Copy the plugin file to your OpenCode plugins directory:
 
 ```bash
 # Global (all projects)
-cp opencode-plugin/work-checkpoints.ts ~/.config/opencode/plugin/
+cp opencode-plugin/work-checkpoints.ts ~/.config/opencode/plugins/
 
 # Project-local
-cp opencode-plugin/work-checkpoints.ts .opencode/plugin/
+cp opencode-plugin/work-checkpoints.ts .opencode/plugins/
 ```
+
+The file only uses Bun built-ins, so no `package.json` or install step is needed.
+OpenCode v1 users should take the file from the [`v1.3.1`](https://github.com/yoshi47/work-checkpoints/blob/v1.3.1/opencode-plugin/work-checkpoints.ts) tag instead.
 
 ### Features
 
-- **Auto-save**: Creates a checkpoint each time you send a message (`chat.message` hook)
+- **Auto-save**: Creates a checkpoint each time you send a message (session `prompt` hook)
 - **List checkpoints**: `list_checkpoints` tool to view all saved checkpoints
 - **Restore checkpoints**: `restore_checkpoint` tool to revert to a previous state
 - Shares the same shadow repository as the VSCode extension and the other plugins (Claude Code, Codex CLI)
 - Git lock waiting and retry logic for stability
 
-### Requirements
+### Restore has no approval prompt
 
-- [Bun](https://bun.sh/) runtime (used by OpenCode)
-- `@opencode-ai/plugin` package (installed in your OpenCode config directory)
+OpenCode v2 does not let plugin tools ask for approval, so `restore_checkpoint` overwrites files as soon as the model calls it.
+To keep the model from restoring on its own, hide the tool with a permission rule in `opencode.json(c)`:
+
+```jsonc
+{
+  "permissions": [{ "action": "restore_checkpoint", "resource": "*", "effect": "deny" }]
+}
+```
+
+With this rule, restore from the VSCode extension or the Claude Code / Codex CLI plugin instead. They share the same shadow repository.
 
 ## Codex CLI Plugin
 
