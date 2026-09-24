@@ -9,189 +9,340 @@
  *
  * Compatible with the Claude Code work-checkpoints plugin and VSCode extension.
  *
+ * Requires OpenCode v2.
+ *
  * Installation:
- *   Copy this file to ~/.config/opencode/plugin/work-checkpoints.ts (global)
- *   or .opencode/plugin/work-checkpoints.ts (project-local)
+ *   Copy this file to ~/.config/opencode/plugins/work-checkpoints.ts (global)
+ *   or .opencode/plugins/work-checkpoints.ts (project-local)
  *
  * @see https://github.com/kururu6966/work-checkpoints
- * @see https://opencode.ai/docs/plugins/
+ * @see https://opencode.ai/v2/docs/build/plugins/
  */
 
-import type { Plugin } from "@opencode-ai/plugin"
-import { tool } from "@opencode-ai/plugin"
+import { $ } from "bun"
+// Type-only: OpenCode does not install dependencies for local plugin files.
+import type { Plugin } from "@opencode/plugin"
 
-export const WorkCheckpointsPlugin: Plugin = async ({ $, worktree }) => {
-  const getShadowRepo = async () => {
-    let gitRoot: string
-    try {
-      gitRoot = (
-        await $`git -C ${worktree} rev-parse --show-toplevel`.quiet()
-      ).stdout
-        .toString()
-        .trim()
-    } catch {
-      return null
-    }
-    if (!gitRoot) return null
+const plugin: Plugin.Plugin = {
+  id: "work-checkpoints",
+  async setup(ctx) {
+    const directory = ctx.location.directory
 
-    let source: string
-    try {
-      source = (
-        await $`git -C ${gitRoot} remote get-url origin`.quiet()
-      ).stdout
-        .toString()
-        .trim()
-    } catch {
-      source = gitRoot
-    }
+    const getShadowRepo = async () => {
+      let gitRoot: string
+      try {
+        gitRoot = (
+          await $`git -C ${directory} rev-parse --show-toplevel`.quiet()
+        ).stdout
+          .toString()
+          .trim()
+      } catch {
+        return null
+      }
+      if (!gitRoot) return null
 
-    const hash = new Bun.CryptoHasher("sha256")
-      .update(source)
-      .digest("hex")
-      .substring(0, 12)
-    return {
-      shadowRepo: `${process.env.HOME}/.work-checkpoints/${hash}`,
-      gitRoot,
-    }
-  }
+      let source: string
+      try {
+        source = (
+          await $`git -C ${gitRoot} remote get-url origin`.quiet()
+        ).stdout
+          .toString()
+          .trim()
+      } catch {
+        source = gitRoot
+      }
 
-  const initShadowRepo = async (shadowRepo: string, gitRoot: string) => {
-    try {
-      await $`test -d ${shadowRepo}/.git`.quiet()
-    } catch {
-      await $`mkdir -p ${shadowRepo}`
-      await $`git -C ${shadowRepo} init`.quiet()
-      await $`git -C ${shadowRepo} config user.email "work-checkpoints@local"`.quiet()
-      await $`git -C ${shadowRepo} config user.name "Work Checkpoints"`.quiet()
-      await $`git -C ${shadowRepo} config core.quotepath false`.quiet()
-      await $`git -C ${shadowRepo} config i18n.commitencoding utf-8`.quiet()
-      await $`git -C ${shadowRepo} config i18n.logoutputencoding utf-8`.quiet()
-    }
-    await $`git -C ${shadowRepo} config core.worktree ${gitRoot}`.quiet()
-
-    // core.worktree を付け替えられたシャドウリポジトリでは index に残った fsmonitor
-    // トークンが別ワークツリー由来になり、status/add が変更を無言で取りこぼす。
-    // シャドウリポジトリは他クライアントと共有されるため、ここでも無効化する。
-    // --unset ではなく false を明示するのは、global config で有効化されていると
-    // local を消しただけでは継承されてしまうため。マーカー名は save-checkpoint.sh と共有。
-    // マーカーを立てるのは 3 つとも成功したときだけ。index.lock 等で失敗したまま
-    // 済み扱いにすると、二度と再試行されず取りこぼしが恒久化する。
-    const fsmonitorMarker = `${shadowRepo}/.fsmonitor-disabled`
-    if (!(await Bun.file(fsmonitorMarker).exists())) {
-      const results = [
-        await $`git -C ${shadowRepo} config core.fsmonitor false`.quiet().nothrow(),
-        await $`git -C ${shadowRepo} config core.untrackedcache false`.quiet().nothrow(),
-        await $`git -C ${shadowRepo} update-index --no-fsmonitor --no-untracked-cache`
-          .quiet()
-          .nothrow(),
-      ]
-      const failed = results.find((result) => result.exitCode !== 0)
-      if (failed) {
-        console.error(
-          `[work-checkpoints] Failed to disable fsmonitor (exit ${failed.exitCode}): ${failed.stderr.toString().trim()}`
-        )
-      } else {
-        await Bun.write(fsmonitorMarker, "1")
+      const hash = new Bun.CryptoHasher("sha256")
+        .update(source)
+        .digest("hex")
+        .substring(0, 12)
+      return {
+        shadowRepo: `${process.env.HOME}/.work-checkpoints/${hash}`,
+        gitRoot,
       }
     }
-  }
 
-  // Wait for git lock file to be released (max 3 seconds)
-  const waitForGitLock = async (shadowRepo: string) => {
-    const lockFile = `${shadowRepo}/.git/index.lock`
-    for (let i = 0; i < 6; i++) {
+    const initShadowRepo = async (shadowRepo: string, gitRoot: string) => {
       try {
-        await $`test -f ${lockFile}`.quiet()
-        await Bun.sleep(500)
+        await $`test -d ${shadowRepo}/.git`.quiet()
       } catch {
-        return true // lock file doesn't exist
+        await $`mkdir -p ${shadowRepo}`
+        await $`git -C ${shadowRepo} init`.quiet()
+        await $`git -C ${shadowRepo} config user.email "work-checkpoints@local"`.quiet()
+        await $`git -C ${shadowRepo} config user.name "Work Checkpoints"`.quiet()
+        await $`git -C ${shadowRepo} config core.quotepath false`.quiet()
+        await $`git -C ${shadowRepo} config i18n.commitencoding utf-8`.quiet()
+        await $`git -C ${shadowRepo} config i18n.logoutputencoding utf-8`.quiet()
+      }
+      await $`git -C ${shadowRepo} config core.worktree ${gitRoot}`.quiet()
+
+      // core.worktree を付け替えられたシャドウリポジトリでは index に残った fsmonitor
+      // トークンが別ワークツリー由来になり、status/add が変更を無言で取りこぼす。
+      // シャドウリポジトリは他クライアントと共有されるため、ここでも無効化する。
+      // --unset ではなく false を明示するのは、global config で有効化されていると
+      // local を消しただけでは継承されてしまうため。マーカー名は save-checkpoint.sh と共有。
+      // マーカーを立てるのは 3 つとも成功したときだけ。index.lock 等で失敗したまま
+      // 済み扱いにすると、二度と再試行されず取りこぼしが恒久化する。
+      const fsmonitorMarker = `${shadowRepo}/.fsmonitor-disabled`
+      if (!(await Bun.file(fsmonitorMarker).exists())) {
+        const results = [
+          await $`git -C ${shadowRepo} config core.fsmonitor false`.quiet().nothrow(),
+          await $`git -C ${shadowRepo} config core.untrackedcache false`.quiet().nothrow(),
+          await $`git -C ${shadowRepo} update-index --no-fsmonitor --no-untracked-cache`
+            .quiet()
+            .nothrow(),
+        ]
+        const failed = results.find((result) => result.exitCode !== 0)
+        if (failed) {
+          console.error(
+            `[work-checkpoints] Failed to disable fsmonitor (exit ${failed.exitCode}): ${failed.stderr.toString().trim()}`
+          )
+        } else {
+          await Bun.write(fsmonitorMarker, "1")
+        }
       }
     }
-    return false
-  }
 
-  // git add with retry (up to 3 times)
-  const safeGitAdd = async (shadowRepo: string) => {
-    for (let i = 0; i < 3; i++) {
-      if (!(await waitForGitLock(shadowRepo))) return false
-      try {
-        await $`git -C ${shadowRepo} add -A`.quiet()
-        return true
-      } catch {
-        await Bun.sleep(300)
-      }
-    }
-    return false
-  }
-
-  // git commit with retry (up to 3 times)
-  const safeGitCommit = async (shadowRepo: string, message: string) => {
-    for (let i = 0; i < 3; i++) {
-      if (!(await waitForGitLock(shadowRepo))) return false
-      try {
-        // Check if there are staged changes
-        await $`git -C ${shadowRepo} diff --cached --quiet`.quiet()
-        return true // no changes to commit
-      } catch {
-        // There are staged changes, try to commit
+    // Wait for git lock file to be released (max 3 seconds)
+    const waitForGitLock = async (shadowRepo: string) => {
+      const lockFile = `${shadowRepo}/.git/index.lock`
+      for (let i = 0; i < 6; i++) {
         try {
-          await $`git -C ${shadowRepo} commit -m ${message}`.quiet()
+          await $`test -f ${lockFile}`.quiet()
+          await Bun.sleep(500)
+        } catch {
+          return true // lock file doesn't exist
+        }
+      }
+      return false
+    }
+
+    // git add with retry (up to 3 times)
+    const safeGitAdd = async (shadowRepo: string) => {
+      for (let i = 0; i < 3; i++) {
+        if (!(await waitForGitLock(shadowRepo))) return false
+        try {
+          await $`git -C ${shadowRepo} add -A`.quiet()
           return true
         } catch {
           await Bun.sleep(300)
         }
       }
+      return false
     }
-    return false
-  }
 
-  const readConfig = async (
-    shadowRepo: string
-  ): Promise<{ messageFormat?: string; dateFormat?: string }> => {
-    const filePath = `${shadowRepo}/config.json`
-    let content: string
-    try {
-      content = await Bun.file(filePath).text()
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
-        console.error(
-          `[work-checkpoints] Failed to read ${filePath}:`,
-          error
-        )
+    // git commit with retry (up to 3 times)
+    const safeGitCommit = async (shadowRepo: string, message: string) => {
+      for (let i = 0; i < 3; i++) {
+        if (!(await waitForGitLock(shadowRepo))) return false
+        try {
+          // Check if there are staged changes
+          await $`git -C ${shadowRepo} diff --cached --quiet`.quiet()
+          return true // no changes to commit
+        } catch {
+          // There are staged changes, try to commit
+          try {
+            await $`git -C ${shadowRepo} commit -m ${message}`.quiet()
+            return true
+          } catch {
+            await Bun.sleep(300)
+          }
+        }
       }
-      return {}
+      return false
     }
-    try {
-      const parsed = JSON.parse(content)
-      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+
+    const readConfig = async (
+      shadowRepo: string
+    ): Promise<{ messageFormat?: string; dateFormat?: string }> => {
+      const filePath = `${shadowRepo}/config.json`
+      let content: string
+      try {
+        content = await Bun.file(filePath).text()
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
+          console.error(
+            `[work-checkpoints] Failed to read ${filePath}:`,
+            error
+          )
+        }
         return {}
       }
-      return parsed as { messageFormat?: string; dateFormat?: string }
-    } catch (error) {
-      console.error(
-        `[work-checkpoints] Invalid JSON in ${filePath}:`,
-        error
-      )
-      return {}
+      try {
+        const parsed = JSON.parse(content)
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+          return {}
+        }
+        return parsed as { messageFormat?: string; dateFormat?: string }
+      } catch (error) {
+        console.error(
+          `[work-checkpoints] Invalid JSON in ${filePath}:`,
+          error
+        )
+        return {}
+      }
     }
-  }
 
-  const formatDate = (date: Date, fmt: string): string => {
-    const pad = (n: number) => n.toString().padStart(2, "0")
-    const tokens: Record<string, string> = {
-      yyyy: date.getFullYear().toString(),
-      MM: pad(date.getMonth() + 1),
-      dd: pad(date.getDate()),
-      HH: pad(date.getHours()),
-      mm: pad(date.getMinutes()),
-      ss: pad(date.getSeconds()),
+    const formatDate = (date: Date, fmt: string): string => {
+      const pad = (n: number) => n.toString().padStart(2, "0")
+      const tokens: Record<string, string> = {
+        yyyy: date.getFullYear().toString(),
+        MM: pad(date.getMonth() + 1),
+        dd: pad(date.getDate()),
+        HH: pad(date.getHours()),
+        mm: pad(date.getMinutes()),
+        ss: pad(date.getSeconds()),
+      }
+      return fmt.replace(/yyyy|MM|dd|HH|mm|ss/g, (m) => tokens[m])
     }
-    return fmt.replace(/yyyy|MM|dd|HH|mm|ss/g, (m) => tokens[m])
-  }
 
-  return {
+    const listCheckpoints = async (): Promise<string> => {
+      const info = await getShadowRepo()
+      if (!info) return "Error: Not a Git repository"
+
+      const { shadowRepo } = info
+      try {
+        await $`test -d ${shadowRepo}/.git`.quiet()
+      } catch {
+        return "No checkpoints found."
+      }
+
+      // Read deleted IDs
+      let deletedIds: Set<string> = new Set()
+      try {
+        const deleted = (
+          await $`cat ${shadowRepo}/.deleted`.quiet()
+        ).stdout
+          .toString()
+          .trim()
+        if (deleted) {
+          for (const id of deleted.split("\n")) {
+            deletedIds.add(id.trim())
+          }
+        }
+      } catch {
+        // No .deleted file
+      }
+
+      // Read renamed mappings
+      const renamedMap = new Map<string, string>()
+      try {
+        const renamed = (
+          await $`cat ${shadowRepo}/.renamed`.quiet()
+        ).stdout
+          .toString()
+          .trim()
+        if (renamed) {
+          for (const line of renamed.split("\n")) {
+            const [id, ...nameParts] = line.split("\t")
+            if (id && nameParts.length > 0) {
+              renamedMap.set(id.trim(), nameParts.join("\t").trim())
+            }
+          }
+        }
+      } catch {
+        // No .renamed file
+      }
+
+      // Get log
+      let logOutput: string
+      try {
+        logOutput = (
+          await $`git -C ${shadowRepo} log --oneline --all --format=%h\ %s`.quiet()
+        ).stdout
+          .toString()
+          .trim()
+      } catch {
+        return "No checkpoints found."
+      }
+
+      if (!logOutput) return "No checkpoints found."
+
+      const lines: string[] = []
+      let count = 0
+
+      for (const line of logOutput.split("\n")) {
+        const spaceIdx = line.indexOf(" ")
+        if (spaceIdx === -1) continue
+        const id = line.substring(0, spaceIdx)
+        const message = line.substring(spaceIdx + 1)
+
+        if (deletedIds.has(id)) continue
+
+        count++
+        const displayName = renamedMap.get(id) || message
+
+        // Get date
+        let date = ""
+        try {
+          date = (
+            await $`git -C ${shadowRepo} log -1 --format=%ci ${id}`.quiet()
+          ).stdout
+            .toString()
+            .trim()
+            .split(" ")
+            .slice(0, 2)
+            .join(" ")
+        } catch {
+          // ignore
+        }
+
+        lines.push(`${count}) ${id} - ${displayName} (${date})`)
+      }
+
+      if (count === 0) return "No checkpoints found."
+
+      return `=== Checkpoints ===\n\n${lines.join("\n")}\n\nTotal: ${count} checkpoint(s)`
+    }
+
+    const restoreCheckpoint = async (checkpointId: string): Promise<string> => {
+      const info = await getShadowRepo()
+      if (!info) return "Error: Not a Git repository"
+
+      const { shadowRepo } = info
+      try {
+        await $`test -d ${shadowRepo}/.git`.quiet()
+      } catch {
+        return "Error: No checkpoints repository found"
+      }
+
+      // Verify checkpoint exists
+      try {
+        await $`git -C ${shadowRepo} rev-parse --verify ${checkpointId}`.quiet()
+      } catch {
+        return `Error: Checkpoint '${checkpointId}' not found`
+      }
+
+      // Get checkpoint info
+      let commitMsg = ""
+      let commitDate = ""
+      try {
+        commitMsg = (
+          await $`git -C ${shadowRepo} log -1 --format=%s ${checkpointId}`.quiet()
+        ).stdout
+          .toString()
+          .trim()
+        commitDate = (
+          await $`git -C ${shadowRepo} log -1 --format=%ci ${checkpointId}`.quiet()
+        ).stdout
+          .toString()
+          .trim()
+      } catch {
+        // ignore
+      }
+
+      // Restore files
+      try {
+        await $`git -C ${shadowRepo} checkout ${checkpointId} -- .`.quiet()
+      } catch (error) {
+        return `Error: Failed to restore checkpoint - ${String(error)}`
+      }
+
+      return `Successfully restored checkpoint: ${checkpointId}\n  Message: ${commitMsg}\n  Date: ${commitDate}`
+    }
+
     // Auto-save on user message
-    "chat.message": async (input, output) => {
+    await ctx.session.hook("prompt", async (event) => {
       try {
         const info = await getShadowRepo()
         if (!info) return
@@ -217,8 +368,7 @@ export const WorkCheckpointsPlugin: Plugin = async ({ $, worktree }) => {
           .replaceAll("${date}", dateStr)
         const title = `[OpenCode] ${formatted}`
 
-        const promptText =
-          output.message?.parts?.[0]?.text?.substring(0, 500) || ""
+        const promptText = event.prompt.text.substring(0, 500)
         const message = promptText ? `${title}\n\n${promptText}` : title
 
         if (await safeGitAdd(shadowRepo)) {
@@ -227,182 +377,43 @@ export const WorkCheckpointsPlugin: Plugin = async ({ $, worktree }) => {
       } catch {
         // Never break the session due to checkpoint failure
       }
-    },
+    })
 
-    tool: {
-      list_checkpoints: tool({
+    await ctx.tool.transform((editor) => {
+      editor.add({
+        name: "list_checkpoints",
         description:
           "List all work checkpoints (snapshots saved on each user message)",
-        args: {},
-        async execute(_args, _context) {
-          const info = await getShadowRepo()
-          if (!info) return "Error: Not a Git repository"
+        input: { type: "object", properties: {}, additionalProperties: false },
+        execute: async () => ({ content: await listCheckpoints() }),
+      })
 
-          const { shadowRepo } = info
-          try {
-            await $`test -d ${shadowRepo}/.git`.quiet()
-          } catch {
-            return "No checkpoints found."
-          }
-
-          // Read deleted IDs
-          let deletedIds: Set<string> = new Set()
-          try {
-            const deleted = (
-              await $`cat ${shadowRepo}/.deleted`.quiet()
-            ).stdout
-              .toString()
-              .trim()
-            if (deleted) {
-              for (const id of deleted.split("\n")) {
-                deletedIds.add(id.trim())
-              }
-            }
-          } catch {
-            // No .deleted file
-          }
-
-          // Read renamed mappings
-          const renamedMap = new Map<string, string>()
-          try {
-            const renamed = (
-              await $`cat ${shadowRepo}/.renamed`.quiet()
-            ).stdout
-              .toString()
-              .trim()
-            if (renamed) {
-              for (const line of renamed.split("\n")) {
-                const [id, ...nameParts] = line.split("\t")
-                if (id && nameParts.length > 0) {
-                  renamedMap.set(id.trim(), nameParts.join("\t").trim())
-                }
-              }
-            }
-          } catch {
-            // No .renamed file
-          }
-
-          // Get log
-          let logOutput: string
-          try {
-            logOutput = (
-              await $`git -C ${shadowRepo} log --oneline --all --format=%h\ %s`.quiet()
-            ).stdout
-              .toString()
-              .trim()
-          } catch {
-            return "No checkpoints found."
-          }
-
-          if (!logOutput) return "No checkpoints found."
-
-          const lines: string[] = []
-          let count = 0
-
-          for (const line of logOutput.split("\n")) {
-            const spaceIdx = line.indexOf(" ")
-            if (spaceIdx === -1) continue
-            const id = line.substring(0, spaceIdx)
-            const message = line.substring(spaceIdx + 1)
-
-            if (deletedIds.has(id)) continue
-
-            count++
-            const displayName = renamedMap.get(id) || message
-
-            // Get date
-            let date = ""
-            try {
-              date = (
-                await $`git -C ${shadowRepo} log -1 --format=%ci ${id}`.quiet()
-              ).stdout
-                .toString()
-                .trim()
-                .split(" ")
-                .slice(0, 2)
-                .join(" ")
-            } catch {
-              // ignore
-            }
-
-            lines.push(`${count}) ${id} - ${displayName} (${date})`)
-          }
-
-          if (count === 0) return "No checkpoints found."
-
-          return `=== Checkpoints ===\n\n${lines.join("\n")}\n\nTotal: ${count} checkpoint(s)`
-        },
-      }),
-
-      restore_checkpoint: tool({
+      editor.add({
+        name: "restore_checkpoint",
         description: "Restore workspace files to a specific checkpoint",
-        args: {
-          checkpoint_id: tool.schema
-            .string()
-            .describe(
-              "Checkpoint commit ID (short hash from list_checkpoints)"
-            ),
-        },
-        async execute(args, context) {
-          const info = await getShadowRepo()
-          if (!info) return "Error: Not a Git repository"
-
-          const { shadowRepo } = info
-          try {
-            await $`test -d ${shadowRepo}/.git`.quiet()
-          } catch {
-            return "Error: No checkpoints repository found"
-          }
-
-          const checkpointId = args.checkpoint_id
-
-          // Verify checkpoint exists
-          try {
-            await $`git -C ${shadowRepo} rev-parse --verify ${checkpointId}`.quiet()
-          } catch {
-            return `Error: Checkpoint '${checkpointId}' not found`
-          }
-
-          // Get checkpoint info
-          let commitMsg = ""
-          let commitDate = ""
-          try {
-            commitMsg = (
-              await $`git -C ${shadowRepo} log -1 --format=%s ${checkpointId}`.quiet()
-            ).stdout
-              .toString()
-              .trim()
-            commitDate = (
-              await $`git -C ${shadowRepo} log -1 --format=%ci ${checkpointId}`.quiet()
-            ).stdout
-              .toString()
-              .trim()
-          } catch {
-            // ignore
-          }
-
-          // Ask for permission before restoring
-          await context.ask({
-            permission: `Restore checkpoint ${checkpointId}?\n  Message: ${commitMsg}\n  Date: ${commitDate}\n\nThis will overwrite current workspace files.`,
-            patterns: ["*"],
-            always: [],
-            metadata: {
-              checkpoint_id: checkpointId,
-              message: commitMsg,
-              date: commitDate,
+        input: {
+          type: "object",
+          properties: {
+            checkpoint_id: {
+              type: "string",
+              description: "Checkpoint commit ID (short hash from list_checkpoints)",
             },
-          })
-
-          // Restore files
-          try {
-            await $`git -C ${shadowRepo} checkout ${checkpointId} -- .`.quiet()
-          } catch (error) {
-            return `Error: Failed to restore checkpoint - ${String(error)}`
-          }
-
-          return `Successfully restored checkpoint: ${checkpointId}\n  Message: ${commitMsg}\n  Date: ${commitDate}`
+          },
+          required: ["checkpoint_id"],
+          additionalProperties: false,
         },
-      }),
-    },
-  }
+        // v2 plugin tools cannot prompt for approval (no context.ask, and an "ask" rule
+        // is not enforced on them). options.permission only lets users hide the tool with a "deny" rule.
+        options: { permission: "restore_checkpoint" },
+        execute: async (input) => ({
+          // A plain JSON Schema input is typed as unknown (InputValue in @opencode/schema/tool).
+          content: await restoreCheckpoint(
+            (input as { checkpoint_id: string }).checkpoint_id
+          ),
+        }),
+      })
+    })
+  },
 }
+
+export default plugin

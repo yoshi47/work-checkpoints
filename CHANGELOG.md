@@ -15,6 +15,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   it does leave a second, failing hook wired to a path you no longer maintain.
 - `restore-checkpoint` and `delete-checkpoints` are now available inside Codex as skills. Codex plugins have
   no slash-command capability, so they are skills rather than the commands the Claude Code plugin ships.
+- The OpenCode plugin now targets the OpenCode v2 plugin API and no longer loads in OpenCode v1. Copy it to
+  `~/.config/opencode/plugins/` or `.opencode/plugins/` (plural). It no longer needs `@opencode-ai/plugin`
+  installed. `restore_checkpoint` no longer asks for approval, because v2 plugin tools cannot prompt. Use a
+  `deny` permission rule on `restore_checkpoint` to hide it.
 
 ## [1.3.1] - 2026-08-20
 
