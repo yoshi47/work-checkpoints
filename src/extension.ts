@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { saveSnapshot } from './commands/saveSnapshot';
 import { restoreSnapshot, restoreWithWorktreeGuard } from './commands/restoreSnapshot';
-import { deleteSnapshots, deleteClaudeSnapshots } from './commands/deleteSnapshots';
+import { deleteSnapshots, deleteAgentSnapshots } from './commands/deleteSnapshots';
 import { SnapshotTreeProvider, SnapshotTreeItem, SnapshotFileTreeItem, SnapshotFolderTreeItem } from './views/snapshotTreeProvider';
 import { SnapshotInputViewProvider } from './views/snapshotInputViewProvider';
 import { SnapshotContentProvider } from './providers/snapshotContentProvider';
@@ -51,12 +51,13 @@ export const activate = (context: vscode.ExtensionContext) => {
   }
   vscode.commands.executeCommand('setContext', 'workCheckpoints.groupByBranch', savedGroupByBranch);
 
-  // Initialize context for show Claude snapshots mode
-  const savedShowClaude = context.globalState.get('work-checkpoints.showClaudeSnapshots', true);
-  if (!savedShowClaude) {
-    snapshotTreeProvider.setShowClaudeSnapshots(false);
+  // Initialize context for show agent snapshots mode
+  // キーは showClaudeSnapshots のまま: 変えると保存済みのトグル状態とキーバインドが失われる
+  const savedShowAgent = context.globalState.get('work-checkpoints.showClaudeSnapshots', true);
+  if (!savedShowAgent) {
+    snapshotTreeProvider.setShowAgentSnapshots(false);
   }
-  vscode.commands.executeCommand('setContext', 'workCheckpoints.showClaudeSnapshots', savedShowClaude);
+  vscode.commands.executeCommand('setContext', 'workCheckpoints.showClaudeSnapshots', savedShowAgent);
 
   // Initialize context for commit diff mode
   const setCommitDiffMode = (mode: boolean) => {
@@ -182,12 +183,12 @@ export const activate = (context: vscode.ExtensionContext) => {
       context.globalState.update('work-checkpoints.groupByBranch', false);
     }),
     vscode.commands.registerCommand('work-checkpoints.showClaudeSnapshots', () => {
-      snapshotTreeProvider.setShowClaudeSnapshots(true);
+      snapshotTreeProvider.setShowAgentSnapshots(true);
       vscode.commands.executeCommand('setContext', 'workCheckpoints.showClaudeSnapshots', true);
       context.globalState.update('work-checkpoints.showClaudeSnapshots', true);
     }),
     vscode.commands.registerCommand('work-checkpoints.hideClaudeSnapshots', () => {
-      snapshotTreeProvider.setShowClaudeSnapshots(false);
+      snapshotTreeProvider.setShowAgentSnapshots(false);
       vscode.commands.executeCommand('setContext', 'workCheckpoints.showClaudeSnapshots', false);
       context.globalState.update('work-checkpoints.showClaudeSnapshots', false);
     }),
@@ -196,7 +197,7 @@ export const activate = (context: vscode.ExtensionContext) => {
       snapshotTreeProvider.refresh();
     }),
     vscode.commands.registerCommand('work-checkpoints.deleteClaudeSnapshots', async () => {
-      await deleteClaudeSnapshots();
+      await deleteAgentSnapshots();
       snapshotTreeProvider.refresh();
     }),
     vscode.commands.registerCommand('work-checkpoints.openSettings', () => {

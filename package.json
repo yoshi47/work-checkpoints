@@ -124,12 +124,12 @@
       },
       {
         "command": "work-checkpoints.showClaudeSnapshots",
-        "title": "Show Claude Snapshots",
+        "title": "Show Agent Snapshots",
         "icon": "$(eye-closed)"
       },
       {
         "command": "work-checkpoints.hideClaudeSnapshots",
-        "title": "Hide Claude Snapshots",
+        "title": "Hide Agent Snapshots",
         "icon": "$(eye)"
       },
       {
@@ -139,7 +139,7 @@
       },
       {
         "command": "work-checkpoints.deleteClaudeSnapshots",
-        "title": "Delete Claude Snapshots",
+        "title": "Delete Agent Snapshots",
         "icon": "$(trash)"
       },
       {

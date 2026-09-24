@@ -12,6 +12,13 @@ import { writeConfigFile } from '../utils/configFile';
 
 const execFileAsync = promisify(execFile);
 
+const AGENT_PREFIX = /^\[(Claude|Codex|OpenCode)\]\s*/i;
+
+const parseAgentBranch = (originalBranch: string) => ({
+  isAgentCreated: AGENT_PREFIX.test(originalBranch),
+  branchName: originalBranch.replace(AGENT_PREFIX, ''),
+});
+
 // git config --get は「キーが無い」だけを exit 1 で返す。設定ファイル破損やタイムアウトは
 // 別のコードになる。それらを「未設定」と同一視すると worktree の検査が無言で消え、
 // 破壊的な復元を素通りさせてしまうので、exit 1 だけを未設定として扱う。
@@ -752,15 +759,14 @@ export class ShadowGitService {
     const trailerMatch = body.match(/^Branch: (.+)$/m);
     if (trailerMatch) {
       const originalBranch = trailerMatch[1];
-      const isClaudeCreated = /^\[Claude\]/i.test(originalBranch);
-      const branchName = originalBranch.replace(/^\[Claude\]\s*/, '');
+      const { isAgentCreated, branchName } = parseAgentBranch(originalBranch);
       return {
         id: commit.hash.substring(0, 7),
         branchName,
         timestamp: new Date(commit.date),
         description: message,
         fullMessage,
-        isClaudeCreated,
+        isAgentCreated,
       };
     }
 
@@ -768,8 +774,7 @@ export class ShadowGitService {
     const oldFormatMatch = message.match(/^(.+) @ (.+)$/);
     if (oldFormatMatch) {
       const originalBranch = oldFormatMatch[1];
-      const isClaudeCreated = /^\[Claude\]/i.test(originalBranch);
-      const branchName = originalBranch.replace(/^\[Claude\]\s*/, '');
+      const { isAgentCreated, branchName } = parseAgentBranch(originalBranch);
       const parsedDate = new Date(oldFormatMatch[2]);
       return {
         id: commit.hash.substring(0, 7),
@@ -777,7 +782,7 @@ export class ShadowGitService {
         timestamp: isNaN(parsedDate.getTime()) ? new Date(commit.date) : parsedDate,
         description: message,
         fullMessage,
-        isClaudeCreated,
+        isAgentCreated,
       };
     }
 
@@ -788,7 +793,7 @@ export class ShadowGitService {
       timestamp: new Date(commit.date),
       description: message,
       fullMessage,
-      isClaudeCreated: false,
+      isAgentCreated: false,
     };
   };
 }

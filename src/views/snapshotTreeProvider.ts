@@ -162,7 +162,7 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
   private workspaceService: WorkspaceService | null = null;
   private treeViewMode: boolean = true;
   private groupByBranch: boolean = false;
-  private showClaudeSnapshots: boolean = true;
+  private showAgentSnapshots: boolean = true;
 
   constructor(private readonly snapshotContentProvider: SnapshotContentProvider) {
     this.initializeServices();
@@ -186,13 +186,13 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
     return this.groupByBranch;
   }
 
-  setShowClaudeSnapshots(value: boolean): void {
-    this.showClaudeSnapshots = value;
+  setShowAgentSnapshots(value: boolean): void {
+    this.showAgentSnapshots = value;
     this._onDidChangeTreeData.fire();
   }
 
-  isShowingClaudeSnapshots(): boolean {
-    return this.showClaudeSnapshots;
+  isShowingAgentSnapshots(): boolean {
+    return this.showAgentSnapshots;
   }
 
   async ensureInitialized(): Promise<void> {
@@ -248,7 +248,7 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
         const snapshots = await this.shadowGitService.listSnapshots();
         return snapshots
           .filter((s) => s.branchName === element.branchName)
-          .filter((s) => this.showClaudeSnapshots || !s.isClaudeCreated)
+          .filter((s) => this.showAgentSnapshots || !s.isAgentCreated)
           .map((snapshot) => new SnapshotTreeItem(snapshot, vscode.TreeItemCollapsibleState.Collapsed));
       }
 
@@ -273,9 +273,9 @@ export class SnapshotTreeProvider implements vscode.TreeDataProvider<TreeItem> {
       // ルートレベル
       let snapshots = await this.shadowGitService.listSnapshots();
 
-      // Claudeスナップショットのフィルタリング
-      if (!this.showClaudeSnapshots) {
-        snapshots = snapshots.filter((s) => !s.isClaudeCreated);
+      // AI エージェント作成分のフィルタリング
+      if (!this.showAgentSnapshots) {
+        snapshots = snapshots.filter((s) => !s.isAgentCreated);
       }
 
       if (this.groupByBranch) {
