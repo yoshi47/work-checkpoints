@@ -20,6 +20,15 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Check version sync
+        run: |
+          V=$(jq -r .version package.json)
+          for f in package-lock.json .claude-plugin/marketplace.json claude-plugin/.claude-plugin/plugin.json codex-plugin/.codex-plugin/plugin.json; do
+            grep -q "\"version\": \"$V\"" "$f" || { echo "::error file=$f::version is not $V"; exit 1; }
+          done
+          grep -q "work-checkpoints#v$V" README.md || { echo "::error file=README.md::OpenCode install tag is not v$V"; exit 1; }
+          ! grep -o 'work-checkpoints#v[0-9][0-9.]*' README.md | grep -vx "work-checkpoints#v$V" || { echo "::error file=README.md::OpenCode install tag is not v$V"; exit 1; }
+
       - name: Install dependencies
         run: npm ci
 

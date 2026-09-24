@@ -209,18 +209,33 @@ Use the same checkpoint functionality in [OpenCode](https://opencode.ai/). Autom
 
 ### Installation
 
-Requires OpenCode v2. Copy the plugin file to your OpenCode plugins directory:
+Requires OpenCode v2.
 
 ```bash
-# Global (all projects)
-cp opencode-plugin/work-checkpoints.ts ~/.config/opencode/plugins/
-
-# Project-local
-cp opencode-plugin/work-checkpoints.ts .opencode/plugins/
+opencode plugin add github:yoshi47/work-checkpoints#v1.4.0
 ```
 
-The file only uses Bun built-ins, so no `package.json` or install step is needed.
-OpenCode v1 users should take the file from the [`v1.3.1`](https://github.com/yoshi47/work-checkpoints/blob/v1.3.1/opencode-plugin/work-checkpoints.ts) tag instead.
+Keep the `#v<version>` tag and use the latest [release](https://github.com/yoshi47/work-checkpoints/releases).
+OpenCode caches a Git plugin when it is installed and `opencode plugin update` does not cover Git plugins,
+so an untagged install does not pick up new commits.
+
+To enable it for one project only, list it in `.opencode/opencode.json` instead:
+
+```json
+{ "plugins": ["github:yoshi47/work-checkpoints#v1.4.0"] }
+```
+
+To update, swap the tag:
+
+```bash
+opencode plugin remove github:yoshi47/work-checkpoints#v<installed-version>
+opencode plugin add github:yoshi47/work-checkpoints#v<new-version>
+```
+
+Previously copied `work-checkpoints.ts` into `~/.config/opencode/plugins/` or `.opencode/plugins/`? Delete that file,
+otherwise OpenCode loads the plugin twice.
+
+OpenCode v1 users should copy the file from the [`v1.3.1`](https://github.com/yoshi47/work-checkpoints/blob/v1.3.1/opencode-plugin/work-checkpoints.ts) tag instead.
 
 ### Features
 
