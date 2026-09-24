@@ -7,20 +7,19 @@
  * Shadow repos are stored at ~/.work-checkpoints/<repo_id>/
  * where repo_id = SHA256(remote URL or workspace path)[0:12]
  *
- * Compatible with the Claude Code work-checkpoints plugin and VSCode extension.
+ * Compatible with the VSCode extension and the Claude Code / Codex CLI plugins.
  *
  * Requires OpenCode v2.
  *
  * Installation:
- *   Copy this file to ~/.config/opencode/plugins/work-checkpoints.ts (global)
- *   or .opencode/plugins/work-checkpoints.ts (project-local)
+ *   opencode plugin add github:yoshi47/work-checkpoints#v<version>
  *
- * @see https://github.com/kururu6966/work-checkpoints
+ * @see https://github.com/yoshi47/work-checkpoints
  * @see https://opencode.ai/v2/docs/build/plugins/
  */
 
 import { $ } from "bun"
-// Type-only: OpenCode does not install dependencies for local plugin files.
+// Type-only: @opencode/plugin is not a dependency, and OpenCode installs none for a copied plugin file.
 import type { Plugin } from "@opencode/plugin"
 
 const plugin: Plugin.Plugin = {

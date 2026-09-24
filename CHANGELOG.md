@@ -4,7 +4,7 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [1.4.0] - 2026-09-24
 
 ### Changed
 - The extension now recognizes `[Codex]` and `[OpenCode]` snapshots as agent snapshots, not only `[Claude]`.
@@ -13,6 +13,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   **Delete Agent Snapshots**. Existing Codex and OpenCode snapshots are now hidden by the toggle, and bulk
   delete removes them too (renamed snapshots are still preserved). Keybindings and the saved toggle state
   carry over: the command IDs and the saved-state key are unchanged.
+- The OpenCode plugin installs with `opencode plugin add github:yoshi47/work-checkpoints#v1.4.0` instead of
+  copying the file. Pin the tag: OpenCode caches Git plugins at install time and `opencode plugin update` does
+  not cover them. If you copied the file before, delete it, or the plugin loads twice.
 - The Codex CLI integration is now a real Codex plugin. Install it with `codex plugin marketplace add` +
   `codex plugin add` instead of copying scripts into `~/.codex/hooks/work-checkpoints/` and hand-writing a
   hook entry. Existing users must migrate: install the plugin, approve its hook in an interactive Codex
@@ -21,10 +24,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   it does leave a second, failing hook wired to a path you no longer maintain.
 - `restore-checkpoint` and `delete-checkpoints` are now available inside Codex as skills. Codex plugins have
   no slash-command capability, so they are skills rather than the commands the Claude Code plugin ships.
-- The OpenCode plugin now targets the OpenCode v2 plugin API and no longer loads in OpenCode v1. Copy it to
-  `~/.config/opencode/plugins/` or `.opencode/plugins/` (plural). It no longer needs `@opencode-ai/plugin`
-  installed. `restore_checkpoint` no longer asks for approval, because v2 plugin tools cannot prompt. Use a
-  `deny` permission rule on `restore_checkpoint` to hide it.
+- The OpenCode plugin now targets the OpenCode v2 plugin API and no longer loads in OpenCode v1. It no longer
+  needs `@opencode-ai/plugin` installed. `restore_checkpoint` no longer asks for approval, because v2 plugin
+  tools cannot prompt. Use a `deny` permission rule on `restore_checkpoint` to hide it.
 
 ## [1.3.1] - 2026-08-20
 
@@ -76,7 +78,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   *refused* rather than silently destroying the other workspace. That is the intended behaviour of this
   release — it stops the damage, it does not fix the cause. Overriding with
   `WORK_CHECKPOINTS_FORCE_WORKTREE=1` restores the other worktree's content into the current one, so it
-  is an escape hatch, not a workaround. Per-worktree shadow repositories land in 1.4.0.
+  is an escape hatch, not a workaround. Per-worktree shadow repositories land in a future release.
 - Restoring a **single file** from the tree view does not perform the workspace check; only full
   checkpoint restores do.
 
