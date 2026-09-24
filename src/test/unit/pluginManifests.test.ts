@@ -152,6 +152,7 @@ suite('plugin manifests', () => {
   test('the version is the same everywhere it is written down', async () => {
     const sources = [
       'package.json',
+      'package-lock.json',
       'claude-plugin/.claude-plugin/plugin.json',
       'codex-plugin/.codex-plugin/plugin.json',
     ];
@@ -159,6 +160,12 @@ suite('plugin manifests', () => {
 
     const marketplace = await readJson('.claude-plugin/marketplace.json');
     versions.push(marketplace.plugins.find((p: any) => p.name === 'work-checkpoints').version);
+
+    // OpenCode は Git プラグインをインストール時のキャッシュに固定するので、README はタグを指す。
+    const readme = await fs.readFile(path.join(REPO_ROOT, 'README.md'), 'utf-8');
+    const tags = [...readme.matchAll(/work-checkpoints#v(\d[\d.]*\d)/g)].map((m) => m[1]);
+    assert.ok(tags.length > 0, 'README has no OpenCode install tag');
+    versions.push(...tags);
 
     assert.strictEqual(new Set(versions).size, 1, `versions drifted: ${versions.join(', ')}`);
   });
