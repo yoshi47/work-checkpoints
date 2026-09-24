@@ -17,7 +17,7 @@ Works with **VSCode**, **[Claude Code](#claude-code-plugin)**, **[OpenCode](#ope
 - **Rename Snapshots**: Give meaningful names to your checkpoints
 - **Branch Grouping**: Organize snapshots by branch for better management
 - **File History**: Browse checkpoint history for individual files with diff comparison
-- **Claude Snapshot Management**: Toggle visibility and delete Claude-created snapshots individually
+- **Agent Snapshot Management**: Toggle visibility of, and bulk-delete, snapshots created by Claude Code, Codex CLI, and OpenCode
 - **Activity Bar Integration**: Quick access from the sidebar
 - **Command Palette Support**: All commands available via `Cmd+Shift+P`
 
@@ -62,10 +62,12 @@ Click the star icon on a snapshot to mark it as a favorite. Favorite snapshots a
 - Protected from auto-deletion
 - Clearly indicated with a filled star icon
 
-### Manage Claude Snapshots
+### Manage Agent Snapshots
 
-- Use **Show/Hide Claude Snapshots** to toggle visibility of Claude-created snapshots
-- Use **Delete Claude Snapshots** to remove all Claude-created snapshots (renamed snapshots are protected)
+Snapshots saved by the Claude Code, Codex CLI, and OpenCode plugins (`[Claude]`, `[Codex]`, `[OpenCode]`) are agent snapshots.
+
+- Use **Show/Hide Agent Snapshots** to toggle visibility of agent snapshots
+- Use **Delete Agent Snapshots** to remove all agent snapshots (renamed snapshots are protected)
 
 ## Commands
 
@@ -87,9 +89,9 @@ These actions are available from the panel toolbar buttons, not the Command Pale
 |--------|-------------|
 | `Group by Branch` | Organize snapshots by branch |
 | `Flat List` | Display snapshots in a flat list |
-| `Show Claude Snapshots` | Show Claude-created snapshots |
-| `Hide Claude Snapshots` | Hide Claude-created snapshots |
-| `Delete Claude Snapshots` | Delete all Claude-created snapshots |
+| `Show Agent Snapshots` | Show agent-created snapshots |
+| `Hide Agent Snapshots` | Hide agent-created snapshots |
+| `Delete Agent Snapshots` | Delete all agent-created snapshots |
 | `Delete All Snapshots` | Delete all snapshots |
 | `Show Commit Changes` | Switch to commit diff mode |
 | `Compare with Current` | Switch to diff-with-current mode |

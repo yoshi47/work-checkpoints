@@ -85,7 +85,7 @@ export const deleteSnapshots = async (): Promise<void> => {
   );
 };
 
-export const deleteClaudeSnapshots = async (): Promise<void> => {
+export const deleteAgentSnapshots = async (): Promise<void> => {
   const services = await initializeServices();
   if (!services) {
     return;
@@ -95,18 +95,18 @@ export const deleteClaudeSnapshots = async (): Promise<void> => {
   const allSnapshots = await shadowGitService.listSnapshots();
   const renamedIds = await shadowGitService.getRenamedIds();
 
-  // フィルタ: Claude作成かつリネームされていないもの
-  const claudeSnapshots = allSnapshots.filter(
-    (s) => s.isClaudeCreated && !renamedIds.has(s.id)
+  // フィルタ: AI エージェント作成かつリネームされていないもの
+  const agentSnapshots = allSnapshots.filter(
+    (s) => s.isAgentCreated && !renamedIds.has(s.id)
   );
 
-  if (claudeSnapshots.length === 0) {
-    vscode.window.showInformationMessage('No Claude snapshots to delete.');
+  if (agentSnapshots.length === 0) {
+    vscode.window.showInformationMessage('No agent snapshots to delete.');
     return;
   }
 
   const confirm = await vscode.window.showWarningMessage(
-    `Delete ${claudeSnapshots.length} Claude snapshot(s)? (Renamed snapshots are preserved) This action cannot be undone.`,
+    `Delete ${agentSnapshots.length} agent snapshot(s)? (Renamed snapshots are preserved) This action cannot be undone.`,
     { modal: true },
     'Delete'
   );
@@ -118,16 +118,16 @@ export const deleteClaudeSnapshots = async (): Promise<void> => {
   await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: 'Deleting Claude snapshots...',
+      title: 'Deleting agent snapshots...',
       cancellable: false,
     },
     async () => {
-      for (const snapshot of claudeSnapshots) {
+      for (const snapshot of agentSnapshots) {
         await shadowGitService.deleteSnapshot(snapshot.id);
       }
 
       vscode.window.showInformationMessage(
-        `Deleted ${claudeSnapshots.length} Claude snapshot(s).`
+        `Deleted ${agentSnapshots.length} agent snapshot(s).`
       );
     }
   );

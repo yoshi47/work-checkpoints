@@ -120,6 +120,35 @@ suite('plugin manifests', () => {
     });
   });
 
+  // 共通の1本にまとめないのは、plugin add がプラグインのディレクトリだけをコピーし
+  // ../ を参照できないため。代わりにコピー同士のズレをここで止める。# コメント行と
+  // 大文字表記（CLAUDE / CODEX）は正規化の対象外なので、そこでのズレは検出しない。
+  test('claude-plugin and codex-plugin ship the same scripts apart from the agent name', async () => {
+    const scriptsOf = async (root: string) =>
+      (await fs.readdir(path.join(REPO_ROOT, root, 'scripts'))).sort();
+    const normalize = (text: string, agent: string) =>
+      text
+        .replaceAll(agent, 'AGENT')
+        .replaceAll(agent.toLowerCase(), 'agent')
+        .split('\n')
+        .filter((line) => !/^\s*#(?!!)/.test(line))
+        .map((line) => line.replace(/\s+/g, ' ').trim())
+        .join('\n');
+
+    const scripts = await scriptsOf('claude-plugin');
+    assert.deepStrictEqual(await scriptsOf('codex-plugin'), scripts);
+
+    for (const script of scripts) {
+      const read = (root: string) =>
+        fs.readFile(path.join(REPO_ROOT, root, 'scripts', script), 'utf-8');
+      assert.strictEqual(
+        normalize(await read('codex-plugin'), 'Codex'),
+        normalize(await read('claude-plugin'), 'Claude'),
+        `${script} differs between claude-plugin and codex-plugin`,
+      );
+    }
+  });
+
   test('the version is the same everywhere it is written down', async () => {
     const sources = [
       'package.json',

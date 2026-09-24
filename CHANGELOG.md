@@ -7,6 +7,12 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [Unreleased]
 
 ### Changed
+- The extension now recognizes `[Codex]` and `[OpenCode]` snapshots as agent snapshots, not only `[Claude]`.
+  Before, they were grouped under a separate `[Codex] main` / `[OpenCode] main` branch and ignored by the
+  toggle and bulk delete. The toolbar actions are renamed to **Show/Hide Agent Snapshots** and
+  **Delete Agent Snapshots**. Existing Codex and OpenCode snapshots are now hidden by the toggle, and bulk
+  delete removes them too (renamed snapshots are still preserved). Keybindings and the saved toggle state
+  carry over: the command IDs and the saved-state key are unchanged.
 - The Codex CLI integration is now a real Codex plugin. Install it with `codex plugin marketplace add` +
   `codex plugin add` instead of copying scripts into `~/.codex/hooks/work-checkpoints/` and hand-writing a
   hook entry. Existing users must migrate: install the plugin, approve its hook in an interactive Codex

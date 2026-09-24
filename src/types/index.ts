@@ -4,7 +4,7 @@ export interface SnapshotMetadata {
   timestamp: Date;
   description: string;
   fullMessage?: string;
-  isClaudeCreated?: boolean;
+  isAgentCreated?: boolean;
   isFavorite?: boolean;
 }
 

@@ -200,17 +200,17 @@ suite('ShadowGitService', () => {
       assert.strictEqual(snapshots[2].branchName, 'branch1');
     });
 
-    test('should strip [Claude] prefix from branch name and set isClaudeCreated flag', async () => {
+    test('should strip [Claude] prefix from branch name and set isAgentCreated flag', async () => {
       await shadowGitService.createSnapshot('[Claude] main');
 
       const snapshots = await shadowGitService.listSnapshots();
 
       assert.strictEqual(snapshots.length, 1);
       assert.strictEqual(snapshots[0].branchName, 'main');
-      assert.strictEqual(snapshots[0].isClaudeCreated, true);
+      assert.strictEqual(snapshots[0].isAgentCreated, true);
     });
 
-    test('should strip [Claude] prefix from branch name with custom description and set isClaudeCreated flag', async () => {
+    test('should strip [Claude] prefix from branch name with custom description and set isAgentCreated flag', async () => {
       await shadowGitService.createSnapshot('[Claude] feature/test', undefined, undefined, 'Custom description');
 
       const snapshots = await shadowGitService.listSnapshots();
@@ -218,17 +218,47 @@ suite('ShadowGitService', () => {
       assert.strictEqual(snapshots.length, 1);
       assert.strictEqual(snapshots[0].branchName, 'feature/test');
       assert.strictEqual(snapshots[0].description, 'Custom description');
-      assert.strictEqual(snapshots[0].isClaudeCreated, true);
+      assert.strictEqual(snapshots[0].isAgentCreated, true);
     });
 
-    test('should not modify branch name without [Claude] prefix and set isClaudeCreated to false', async () => {
+    ['Codex', 'OpenCode'].forEach((agent) => {
+      test(`should strip [${agent}] prefix from branch name and set isAgentCreated flag`, async () => {
+        await shadowGitService.createSnapshot(`[${agent}] main`);
+
+        const snapshots = await shadowGitService.listSnapshots();
+
+        assert.strictEqual(snapshots.length, 1);
+        assert.strictEqual(snapshots[0].branchName, 'main');
+        assert.strictEqual(snapshots[0].isAgentCreated, true);
+      });
+    });
+
+    test('should strip an agent prefix regardless of case', async () => {
+      await shadowGitService.createSnapshot('[codex] main');
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      assert.strictEqual(snapshots[0].branchName, 'main');
+      assert.strictEqual(snapshots[0].isAgentCreated, true);
+    });
+
+    test('should not treat an unknown bracketed prefix as an agent', async () => {
+      await shadowGitService.createSnapshot('[Other] main');
+
+      const snapshots = await shadowGitService.listSnapshots();
+
+      assert.strictEqual(snapshots[0].branchName, '[Other] main');
+      assert.strictEqual(snapshots[0].isAgentCreated, false);
+    });
+
+    test('should not modify branch name without an agent prefix and set isAgentCreated to false', async () => {
       await shadowGitService.createSnapshot('feature/normal-branch');
 
       const snapshots = await shadowGitService.listSnapshots();
 
       assert.strictEqual(snapshots.length, 1);
       assert.strictEqual(snapshots[0].branchName, 'feature/normal-branch');
-      assert.strictEqual(snapshots[0].isClaudeCreated, false);
+      assert.strictEqual(snapshots[0].isAgentCreated, false);
     });
   });
 
