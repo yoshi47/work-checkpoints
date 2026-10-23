@@ -8,5 +8,29 @@
   "commands": [
     "./commands/restore-checkpoint.md",
     "./commands/delete-checkpoints.md"
-  ]
+  ],
+  "userConfig": {
+    "messageFormat": {
+      "type": "string",
+      "title": "Snapshot message format",
+      "description": "Used when the shared config.json sets none. Variables: ${branch}, ${date}"
+    },
+    "dateFormat": {
+      "type": "string",
+      "title": "Date format",
+      "description": "Used when the shared config.json sets none. Tokens: yyyy, MM, dd, HH, mm, ss"
+    },
+    "ignorePatterns": {
+      "type": "string",
+      "title": "Extra ignore patterns",
+      "description": "Additional ignore patterns, one per line (gitignore syntax). Used when the shared config.json sets none."
+    },
+    "retentionDays": {
+      "type": "number",
+      "title": "Keep checkpoints for (days)",
+      "description": "Used when the shared config.json sets none. 0 disables auto-deletion. Favorites are always kept.",
+      "min": 0,
+      "max": 365
+    }
+  }
 }

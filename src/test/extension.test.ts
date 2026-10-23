@@ -16,6 +16,19 @@ suite('Extension commands', () => {
   const git = (cwd: string, args: string[]): string =>
     execFileSync('git', args, { cwd, encoding: 'utf-8' }).trim();
 
+  // updateWorkspaceFolders は適用が非同期で、直後にコマンドを叩くと空のウィンドウのまま
+  // 実行されることがある（CI の Linux ランナーで実際に起きた）。フォルダが反映されるまで待つ。
+  const waitForFolder = async (expected: string): Promise<boolean> => {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const current = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (current && path.resolve(current) === path.resolve(expected)) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return false;
+  };
+
   setup(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'work-checkpoints-cmd-'));
     git(tempDir, ['init', '-q', '-b', 'main', '.']);
@@ -34,6 +47,12 @@ suite('Extension commands', () => {
       name: 'fixture',
     });
     assert.ok(added, 'could not open the fixture workspace in the test host');
+
+    const folders = vscode.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath);
+    assert.ok(
+      await waitForFolder(tempDir),
+      `workspace folder was not applied: ${JSON.stringify(folders ?? null)}`
+    );
   });
 
   teardown(async () => {
@@ -44,6 +63,9 @@ suite('Extension commands', () => {
 
   test('saveSnapshot stores a checkpoint on a per-branch ref', async () => {
     await vscode.commands.executeCommand('work-checkpoints.saveSnapshot');
+
+    const exists = await fs.access(shadowRepo).then(() => true).catch(() => false);
+    assert.ok(exists, `the command did not create ${shadowRepo}`);
 
     const ref = git(shadowRepo, ['rev-parse', '--verify', 'refs/checkpoints/main']);
     assert.strictEqual(ref.length, 40);
@@ -56,6 +78,9 @@ suite('Extension commands', () => {
   test('saveSnapshot skips when nothing changed', async () => {
     await vscode.commands.executeCommand('work-checkpoints.saveSnapshot');
     await vscode.commands.executeCommand('work-checkpoints.saveSnapshot');
+
+    const exists = await fs.access(shadowRepo).then(() => true).catch(() => false);
+    assert.ok(exists, `the command did not create ${shadowRepo}`);
 
     const count = git(shadowRepo, ['rev-list', '--count', '--all']);
     assert.strictEqual(count, '1');
