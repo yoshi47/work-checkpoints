@@ -171,23 +171,6 @@ Use the same checkpoint functionality in Claude Code. Automatically creates a ch
 
 - `/work-checkpoints:restore-checkpoint` — Lists all available checkpoints and lets you select one to restore
 
-### Settings
-
-The plugin reads the same `~/.work-checkpoints/<repo-id>/config.json` as the extension, so the extension's
-settings apply to Claude's checkpoints too. When `config.json` leaves a value unset, the plugin falls back to
-its own options. Edit them with `/plugin configure work-checkpoints@work-checkpoints-plugin`, or with
-`/config`.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `messageFormat` | inherited | Snapshot message format. Variables: `${branch}`, `${date}` |
-| `dateFormat` | inherited | Date format. Tokens: `yyyy`, `MM`, `dd`, `HH`, `mm`, `ss` |
-| `ignorePatterns` | inherited | Extra ignore patterns, one per line (gitignore syntax) |
-| `retentionDays` | inherited | Days to keep snapshots before auto-deletion. `0` disables it |
-
-`config.json` wins when both are set. It is the single source of truth shared by every client (VS Code,
-Claude Code, Codex CLI, OpenCode), so a value set in the extension is not overridden from Claude Code.
-
 ### Troubleshooting
 
 Check the log file for errors:
