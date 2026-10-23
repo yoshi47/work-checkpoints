@@ -158,24 +158,13 @@ credentials.json
 EXCLUDE_EOF
   }
 
-  # --- 有効な追加 ignore パターン（config.json 優先、無ければ userConfig） ---
-  # userConfig は Claude Code だけが CLAUDE_PLUGIN_OPTION_* で渡す。Codex / OpenCode では
-  # 常に空なので config.json だけが効く。
-  effective_ignore_patterns() {
-    local from_config=""
-    if [ -f "$CONFIG_FILE" ] && command -v jq &> /dev/null; then
-      from_config=$(jq -r '.ignorePatterns // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
-    fi
-    if [ -n "$from_config" ]; then
-      printf '%s\n' "$from_config"
-      return 0
-    fi
-    printf '%s\n' "${CLAUDE_PLUGIN_OPTION_IGNOREPATTERNS:-}"
-  }
-
+  # --- config.json の ignorePatterns を exclude に追記 ---
   append_user_ignore_patterns() {
     local target="$1"
-    effective_ignore_patterns | grep -v '^[[:space:]]*$' >> "$target" || true
+    if [ ! -f "$CONFIG_FILE" ] || ! command -v jq &> /dev/null; then
+      return 0
+    fi
+    jq -r '.ignorePatterns // [] | .[]' "$CONFIG_FILE" 2>/dev/null >> "$target" || true
   }
 
   # --- デバウンス: 高速連打の抑制 ---
@@ -215,10 +204,11 @@ EXCLUDE_EOF
     git -C "$SHADOW_REPO" config gc.autoPackLimit 4
     git -C "$SHADOW_REPO" config gc.pruneExpire "2.weeks.ago"
 
-    # exclude パターン設定（ユーザー由来の分は下の再生成ブロックで追記する）
+    # exclude パターン設定
     EXCLUDE_DIR="$SHADOW_REPO/.git/info"
     mkdir -p "$EXCLUDE_DIR"
     write_default_excludes > "$EXCLUDE_DIR/exclude"
+    append_user_ignore_patterns "$EXCLUDE_DIR/exclude"
   fi
 
   # --- core.worktree の条件付き更新（変更がなければスキップ） ---
@@ -272,12 +262,6 @@ EXCLUDE_EOF
     fi
   fi
 
-  # config.json に無い項目だけ userConfig（Claude Code のプラグイン設定）にフォールバックする。
-  # config.json を優先するのは、VS Code の設定が全クライアント共通の正であるため。
-  CFG_MSG_FMT="${CFG_MSG_FMT:-${CLAUDE_PLUGIN_OPTION_MESSAGEFORMAT:-}}"
-  CFG_DATE_FMT="${CFG_DATE_FMT:-${CLAUDE_PLUGIN_OPTION_DATEFORMAT:-}}"
-  CFG_RETENTION="${CFG_RETENTION:-${CLAUDE_PLUGIN_OPTION_RETENTIONDAYS:-}}"
-
   # --- dateFormat トークン (yyyy/MM/dd) を strftime (%Y/%m/%d) に変換 ---
   format_date() {
     local fmt="${1:-yyyy/MM/dd HH:mm:ss}"
@@ -290,16 +274,11 @@ EXCLUDE_EOF
     date "+$fmt"
   }
 
-  # --- 追加パターンの実体が変わったら exclude を再生成 ---
-  # config.json の更新時刻だけを見ていると、userConfig だけを変えたときに反映されない。
-  # 有効なパターンそのものを指紋として保存し、比較する。
+  # --- config.json が新しい場合は exclude を再生成 ---
   EXCLUDE_FILE="$SHADOW_REPO/.git/info/exclude"
-  EXCLUDE_SOURCE_FILE="$SHADOW_REPO/.exclude-source"
-  CURRENT_EXCLUDE_SOURCE=$(effective_ignore_patterns)
-  if [ ! -f "$EXCLUDE_FILE" ] || [ "$CURRENT_EXCLUDE_SOURCE" != "$(cat "$EXCLUDE_SOURCE_FILE" 2>/dev/null)" ]; then
+  if [ -f "$CONFIG_FILE" ] && [ -f "$EXCLUDE_FILE" ] && [ "$CONFIG_FILE" -nt "$EXCLUDE_FILE" ]; then
     write_default_excludes > "$EXCLUDE_FILE"
     append_user_ignore_patterns "$EXCLUDE_FILE"
-    printf '%s\n' "$CURRENT_EXCLUDE_SOURCE" > "$EXCLUDE_SOURCE_FILE"
   fi
 
   # --- スナップショット作成 ---
