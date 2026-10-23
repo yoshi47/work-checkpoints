@@ -6,6 +6,14 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+### Added
+- The Claude Code plugin declares `userConfig` options (`messageFormat`, `dateFormat`, `ignorePatterns`,
+  `retentionDays`), so they can be set from `/plugin configure` or `/config` without editing
+  `config.json` by hand. `config.json` still wins: the file stays the single source of truth shared by
+  the extension, Claude Code, Codex CLI and OpenCode. The options intentionally declare no `default`,
+  because an unset option and an option set to its default value are indistinguishable once Claude Code
+  exports `CLAUDE_PLUGIN_OPTION_*` to the hook.
+
 ### Changed
 - Snapshots are now written to one ref per branch (`refs/checkpoints/<branch>`) instead of a single
   linear `HEAD`, and each `git worktree` keeps its own index under `<shadow>/.indexes/`. Before, several

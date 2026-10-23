@@ -120,6 +120,38 @@ suite('plugin manifests', () => {
     });
   });
 
+  // userConfig は Claude Code だけが CLAUDE_PLUGIN_OPTION_* としてフックに渡す。宣言と参照が
+  // ずれると、設定したのに黙って無視される。両方向を突き合わせる。
+  test('claude-plugin: userConfig options and CLAUDE_PLUGIN_OPTION_* references match', async () => {
+    const manifest = await readJson('claude-plugin/.claude-plugin/plugin.json');
+    const options: Record<string, any> = manifest.userConfig ?? {};
+    const declared = Object.keys(options);
+    assert.ok(declared.length > 0, 'claude-plugin declares no userConfig options');
+
+    for (const key of declared) {
+      // default を持たせると「未設定」を判定できず、config.json を常に上書きしてしまう。
+      assert.ok(!('default' in options[key]), `${key} must not set a default`);
+      assert.ok(options[key].type, `${key} has no type`);
+      assert.ok(options[key].title, `${key} has no title`);
+      assert.ok(options[key].description, `${key} has no description`);
+    }
+
+    const scriptsDir = path.join(REPO_ROOT, 'claude-plugin', 'scripts');
+    const referenced = new Set<string>();
+    for (const file of await fs.readdir(scriptsDir)) {
+      const text = await fs.readFile(path.join(scriptsDir, file), 'utf-8');
+      for (const match of text.matchAll(/CLAUDE_PLUGIN_OPTION_([A-Z0-9]+)/g)) {
+        referenced.add(match[1]);
+      }
+    }
+
+    assert.deepStrictEqual(
+      [...referenced].sort(),
+      declared.map((key) => key.toUpperCase()).sort(),
+      'userConfig options and CLAUDE_PLUGIN_OPTION_* references drifted apart',
+    );
+  });
+
   // 共通の1本にまとめないのは、plugin add がプラグインのディレクトリだけをコピーし
   // ../ を参照できないため。代わりにコピー同士のズレをここで止める。# コメント行と
   // 大文字表記（CLAUDE / CODEX）は正規化の対象外なので、そこでのズレは検出しない。
