@@ -158,21 +158,34 @@ credentials.json
 EXCLUDE_EOF
   }
 
-  # --- config.json の ignorePatterns を exclude に追記 ---
-  append_user_ignore_patterns() {
-    local target="$1"
-    if [ ! -f "$CONFIG_FILE" ] || ! command -v jq &> /dev/null; then
+  # --- 有効な追加 ignore パターン（config.json 優先、無ければ userConfig） ---
+  # userConfig は Claude Code だけが CLAUDE_PLUGIN_OPTION_* で渡す。Codex / OpenCode では
+  # 常に空なので config.json だけが効く。
+  effective_ignore_patterns() {
+    local from_config=""
+    if [ -f "$CONFIG_FILE" ] && command -v jq &> /dev/null; then
+      from_config=$(jq -r '.ignorePatterns // [] | .[]' "$CONFIG_FILE" 2>/dev/null)
+    fi
+    if [ -n "$from_config" ]; then
+      printf '%s\n' "$from_config"
       return 0
     fi
-    jq -r '.ignorePatterns // [] | .[]' "$CONFIG_FILE" 2>/dev/null >> "$target" || true
+    printf '%s\n' "${CLAUDE_PLUGIN_OPTION_IGNOREPATTERNS:-}"
+  }
+
+  append_user_ignore_patterns() {
+    local target="$1"
+    effective_ignore_patterns | grep -v '^[[:space:]]*$' >> "$target" || true
   }
 
   # --- デバウンス: 高速連打の抑制 ---
   # 最後のコミットから5秒未満ならスキップ。
   # 目的: 同一プロンプトの連打・即座の修正送信の重複防止。通常の作業間隔(1-2分)は影響なし。
   # rc を捕捉して破損リポジトリを検出（.git があるのに log が失敗するケース）
-  if LAST_COMMIT_TIME=$(git -C "$SHADOW_REPO" log -1 --format=%ct 2>/dev/null); then
-    :
+  # --all を付けるのは、スナップショットがブランチごとの ref に積まれ、HEAD が動かないため。
+  if LAST_COMMIT_TIME=$(git -C "$SHADOW_REPO" log --all -1 --format=%ct 2>/dev/null); then
+    # コミットがまだ1つも無いリポジトリでは空文字が返る
+    [ -z "$LAST_COMMIT_TIME" ] && LAST_COMMIT_TIME=0
   elif [ -d "$SHADOW_REPO/.git" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - Shadow repo .git exists but git log failed (corrupted?): $SHADOW_REPO" >&2
     exit 0
@@ -202,11 +215,10 @@ EXCLUDE_EOF
     git -C "$SHADOW_REPO" config gc.autoPackLimit 4
     git -C "$SHADOW_REPO" config gc.pruneExpire "2.weeks.ago"
 
-    # exclude パターン設定
+    # exclude パターン設定（ユーザー由来の分は下の再生成ブロックで追記する）
     EXCLUDE_DIR="$SHADOW_REPO/.git/info"
     mkdir -p "$EXCLUDE_DIR"
     write_default_excludes > "$EXCLUDE_DIR/exclude"
-    append_user_ignore_patterns "$EXCLUDE_DIR/exclude"
   fi
 
   # --- core.worktree の条件付き更新（変更がなければスキップ） ---
@@ -227,9 +239,18 @@ EXCLUDE_EOF
   FSMONITOR_MARKER="$SHADOW_REPO/.fsmonitor-disabled"
   if [ ! -f "$FSMONITOR_MARKER" ]; then
     if git -C "$SHADOW_REPO" config core.fsmonitor false \
-      && git -C "$SHADOW_REPO" config core.untrackedcache false \
-      && git -C "$SHADOW_REPO" update-index --no-fsmonitor --no-untracked-cache; then
-      echo 1 > "$FSMONITOR_MARKER"
+      && git -C "$SHADOW_REPO" config core.untrackedcache false; then
+      # index は worktree ごとに分かれているので、既存の index すべてから拡張を落とす
+      FSMONITOR_OK=1
+      for index_file in "$SHADOW_REPO/.git/index" "$SHADOW_REPO"/.indexes/*; do
+        [ -f "$index_file" ] || continue
+        GIT_INDEX_FILE="$index_file" git -C "$SHADOW_REPO" update-index --no-fsmonitor --no-untracked-cache || FSMONITOR_OK=0
+      done
+      if [ "$FSMONITOR_OK" -eq 1 ]; then
+        echo 1 > "$FSMONITOR_MARKER"
+      else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - Failed to disable fsmonitor; will retry next time" >&2
+      fi
     else
       echo "$(date '+%Y-%m-%d %H:%M:%S') - Failed to disable fsmonitor; will retry next time" >&2
     fi
@@ -251,6 +272,12 @@ EXCLUDE_EOF
     fi
   fi
 
+  # config.json に無い項目だけ userConfig（Claude Code のプラグイン設定）にフォールバックする。
+  # config.json を優先するのは、VS Code の設定が全クライアント共通の正であるため。
+  CFG_MSG_FMT="${CFG_MSG_FMT:-${CLAUDE_PLUGIN_OPTION_MESSAGEFORMAT:-}}"
+  CFG_DATE_FMT="${CFG_DATE_FMT:-${CLAUDE_PLUGIN_OPTION_DATEFORMAT:-}}"
+  CFG_RETENTION="${CFG_RETENTION:-${CLAUDE_PLUGIN_OPTION_RETENTIONDAYS:-}}"
+
   # --- dateFormat トークン (yyyy/MM/dd) を strftime (%Y/%m/%d) に変換 ---
   format_date() {
     local fmt="${1:-yyyy/MM/dd HH:mm:ss}"
@@ -263,11 +290,16 @@ EXCLUDE_EOF
     date "+$fmt"
   }
 
-  # --- config.json が新しい場合は exclude を再生成 ---
+  # --- 追加パターンの実体が変わったら exclude を再生成 ---
+  # config.json の更新時刻だけを見ていると、userConfig だけを変えたときに反映されない。
+  # 有効なパターンそのものを指紋として保存し、比較する。
   EXCLUDE_FILE="$SHADOW_REPO/.git/info/exclude"
-  if [ -f "$CONFIG_FILE" ] && [ -f "$EXCLUDE_FILE" ] && [ "$CONFIG_FILE" -nt "$EXCLUDE_FILE" ]; then
+  EXCLUDE_SOURCE_FILE="$SHADOW_REPO/.exclude-source"
+  CURRENT_EXCLUDE_SOURCE=$(effective_ignore_patterns)
+  if [ ! -f "$EXCLUDE_FILE" ] || [ "$CURRENT_EXCLUDE_SOURCE" != "$(cat "$EXCLUDE_SOURCE_FILE" 2>/dev/null)" ]; then
     write_default_excludes > "$EXCLUDE_FILE"
     append_user_ignore_patterns "$EXCLUDE_FILE"
+    printf '%s\n' "$CURRENT_EXCLUDE_SOURCE" > "$EXCLUDE_SOURCE_FILE"
   fi
 
   # --- スナップショット作成 ---
@@ -290,24 +322,72 @@ $USER_PROMPT"
     MESSAGE="$TITLE"
   fi
 
-  git -C "$SHADOW_REPO" add -A || { echo "$(date '+%Y-%m-%d %H:%M:%S') - git add failed" >&2; exit 0; }
+  # --- worktree ごとの index と、ブランチごとの ref ---
+  # 単一の index と HEAD を worktree 間で共有すると、別の worktree のスナップショットが
+  # 挟まるたびに「ブランチ間の全ツリー差分」が 1 コミットとして積まれる。差分表示も
+  # 保存も無駄に重くなるうえ、中身が変わっていない空のコミットまで増える。
+  RESOLVED_ROOT=$(cd "$WORKSPACE_ROOT" 2>/dev/null && pwd -P) || RESOLVED_ROOT="$WORKSPACE_ROOT"
+  WORKTREE_KEY=$(printf '%s' "$RESOLVED_ROOT" | shasum -a 256 | cut -c1-12)
+  INDEX_DIR="$SHADOW_REPO/.indexes"
+  mkdir -p "$INDEX_DIR" || exit 0
+  INDEX_FILE="$INDEX_DIR/$WORKTREE_KEY"
 
-  # ステージングエリアに変更がなければコミットをスキップ
-  if git -C "$SHADOW_REPO" diff --cached --quiet 2>/dev/null; then
-    # ワークツリーには差分があるのに何もステージされないのは、add -A が変更を
-    # 取りこぼしている兆候（fsmonitor の不整合で実際に起きた）。無変更のプロンプトと
-    # 区別がつかないまま無言で終わると、数週間気付かれないまま壊れ続ける。
-    DIRTY_COUNT=$(git -C "$SHADOW_REPO" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-    if [ "${DIRTY_COUNT:-0}" -gt 0 ]; then
-      echo "$(date '+%Y-%m-%d %H:%M:%S') - WARN staged nothing while the workspace has $DIRTY_COUNT changed path(s)" >&2
-    fi
-    exit 0
+  if printf '%s' "$BRANCH" | grep -qE '^[A-Za-z0-9._/-]+$' \
+    && [ "$BRANCH" != "HEAD" ] && [ "$BRANCH" != "unknown" ] \
+    && [ "${BRANCH%.lock}" = "$BRANCH" ]; then
+    CHECKPOINT_REF="refs/checkpoints/$BRANCH"
+  else
+    CHECKPOINT_REF="refs/checkpoints/$WORKTREE_KEY"
   fi
 
-  printf '%s' "$MESSAGE" | git -C "$SHADOW_REPO" commit -F - || {
+  # index はこの worktree 専用。git のコマンドごとに GIT_INDEX_FILE を差し替える
+  shadow_git() {
+    GIT_INDEX_FILE="$INDEX_FILE" git -C "$SHADOW_REPO" "$@"
+  }
+
+  shadow_git add -A || { echo "$(date '+%Y-%m-%d %H:%M:%S') - git add failed" >&2; exit 0; }
+  TREE=$(shadow_git write-tree) || { echo "$(date '+%Y-%m-%d %H:%M:%S') - git write-tree failed" >&2; exit 0; }
+
+  PARENT=$(shadow_git rev-parse --verify --quiet "$CHECKPOINT_REF" 2>/dev/null || true)
+  if [ -z "$PARENT" ]; then
+    # 新しいブランチの最初のスナップショットは既存の履歴につなげる（root コミットを増やさない）
+    PARENT=$(shadow_git log --all -1 --format=%H 2>/dev/null || true)
+  fi
+
+  # 親と同一のツリーなら保存しない。worktree をまたいで保存すると、中身が変わっていないのに
+  # 「別ブランチとの差分」だけのコミットが積まれていた。ワークツリーに差分があるのに
+  # ツリーが同じなら、add -A が変更を取りこぼしている兆候（fsmonitor の不整合で実際に起きた）。
+  if [ -n "$PARENT" ]; then
+    PARENT_TREE=$(shadow_git rev-parse "$PARENT^{tree}" 2>/dev/null || true)
+    if [ -n "$PARENT_TREE" ] && [ "$PARENT_TREE" = "$TREE" ]; then
+      DIRTY_COUNT=$(git -C "$WORKSPACE_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+      if [ "${DIRTY_COUNT:-0}" -gt 0 ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - WARN staged nothing while the workspace has $DIRTY_COUNT changed path(s)" >&2
+      fi
+      exit 0
+    fi
+  fi
+
+  # 同一秒に複数のスナップショットが並ぶと一覧の順序がばらつく。全 ref の最新コミットより
+  # 必ず1秒以上後になる日時を刻んで単調増加を保つ。
+  COMMIT_EPOCH=$(date +%s)
+  LATEST_EPOCH=$(shadow_git log --all -1 --format=%ct 2>/dev/null || true)
+  case "$LATEST_EPOCH" in
+    ''|*[!0-9]*) ;;
+    *) [ "$LATEST_EPOCH" -ge "$COMMIT_EPOCH" ] && COMMIT_EPOCH=$((LATEST_EPOCH + 1)) ;;
+  esac
+  COMMIT_DATE="@$COMMIT_EPOCH +0000"
+
+  if [ -n "$PARENT" ]; then
+    COMMIT_ID=$(printf '%s' "$MESSAGE" | env GIT_AUTHOR_DATE="$COMMIT_DATE" GIT_COMMITTER_DATE="$COMMIT_DATE" GIT_INDEX_FILE="$INDEX_FILE" git -C "$SHADOW_REPO" commit-tree "$TREE" -p "$PARENT" -F -)
+  else
+    COMMIT_ID=$(printf '%s' "$MESSAGE" | env GIT_AUTHOR_DATE="$COMMIT_DATE" GIT_COMMITTER_DATE="$COMMIT_DATE" GIT_INDEX_FILE="$INDEX_FILE" git -C "$SHADOW_REPO" commit-tree "$TREE" -F -)
+  fi
+
+  if [ -z "$COMMIT_ID" ] || ! shadow_git update-ref "$CHECKPOINT_REF" "$COMMIT_ID"; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') - Commit failed" >&2
     exit 0
-  }
+  fi
 
   # --- 確率的 gc（1/50 の確率で実行、リポ肥大化防止） ---
   # $RANDOM は bash 組み込み変数。shebang が #!/bin/bash なので使用可能。

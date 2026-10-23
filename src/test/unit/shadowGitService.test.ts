@@ -174,6 +174,65 @@ suite('ShadowGitService', () => {
     });
   });
 
+  suite('per-branch history', () => {
+    const git = (args: string[]): string =>
+      execFileSync('git', ['-C', shadowGitService.shadowRepoPath, ...args], {
+        encoding: 'utf-8',
+      }).trim();
+
+    test('should chain a snapshot to the previous snapshot of the same branch', async () => {
+      const first = await shadowGitService.createSnapshot('main');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      const other = await shadowGitService.createSnapshot('feature/other');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content3');
+      const second = await shadowGitService.createSnapshot('main');
+
+      const full = (rev: string): string => git(['rev-parse', rev]);
+      const parentOf = (rev: string): string =>
+        git(['rev-list', '--parents', '-n1', rev]).split(' ')[1];
+
+      // 別ブランチのスナップショットを挟んでも、main の親は main の前回になる。
+      // ここが最新コミット（feature/other）になると、差分がブランチ間の全ファイルになる。
+      assert.strictEqual(parentOf(second.id), full(first.id));
+      // 新しいブランチの最初のスナップショットは既存の履歴につながる（root を作らない）
+      assert.strictEqual(parentOf(other.id), full(first.id));
+    });
+
+    test('should not commit a tree that is unchanged from this branch', async () => {
+      await shadowGitService.createSnapshot('main');
+
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      await shadowGitService.createSnapshot('feature/other');
+
+      // 元に戻すと main の前回と同じツリー。worktree をまたいだ「差分だけのコミット」を
+      // 積まない（以前は同じツリーのコミットが全体の3分の1を占めていた）。
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content1');
+      await assert.rejects(
+        () => shadowGitService.createSnapshot('main'),
+        /No changes to save/
+      );
+
+      const snapshots = await shadowGitService.listSnapshots();
+      assert.strictEqual(snapshots.length, 2);
+    });
+
+    test('should not move a branch ref when restoring', async () => {
+      const first = await shadowGitService.createSnapshot('main');
+      await fs.writeFile(path.join(workspaceDir, 'file1.txt'), 'content2');
+      await shadowGitService.createSnapshot('main');
+
+      await shadowGitService.restoreSnapshot(first.id);
+
+      // 復元は index とワークツリーだけを差し替える。HEAD を reset すると
+      // 別ブランチの ref まで動いてしまう。
+      const refs = git(['show-ref']);
+      assert.ok(!refs.includes('refs/heads/'), 'restore must not create or move a branch');
+      assert.ok(refs.includes('refs/checkpoints/main'));
+    });
+  });
+
   suite('listSnapshots', () => {
     test('should return empty array when no snapshots exist', async () => {
       const snapshots = await shadowGitService.listSnapshots();

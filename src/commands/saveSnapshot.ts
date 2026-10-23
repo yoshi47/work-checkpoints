@@ -2,14 +2,13 @@ import * as vscode from 'vscode';
 import { WorkspaceService } from '../services/workspaceService';
 import { ShadowGitService } from '../services/shadowGitService';
 
-export const saveSnapshot = async (customDescription?: string): Promise<void> => {
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode.window.showErrorMessage('No workspace folder is open.');
-    return;
-  }
-
-  const workspacePath = workspaceFolders[0].uri.fsPath;
+// コマンドハンドラからワークスペース解決だけを切り離す。拡張ホストのテストでは
+// workspaceFolders に依存した経路を再現できない（updateWorkspaceFolders が効かない）ため、
+// 保存処理そのものはパスを受け取る形にして直接テストできるようにしている。
+export const saveSnapshotInWorkspace = async (
+  workspacePath: string,
+  customDescription?: string
+): Promise<void> => {
   let workspaceService = new WorkspaceService(workspacePath);
 
   const gitRoot = await workspaceService.getGitRoot();
@@ -51,4 +50,14 @@ export const saveSnapshot = async (customDescription?: string): Promise<void> =>
       }
     }
   );
+};
+
+export const saveSnapshot = async (customDescription?: string): Promise<void> => {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    vscode.window.showErrorMessage('No workspace folder is open.');
+    return;
+  }
+
+  await saveSnapshotInWorkspace(workspaceFolders[0].uri.fsPath, customDescription);
 };

@@ -4,6 +4,37 @@ All notable changes to the "work-checkpoints" extension will be documented in th
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [Unreleased]
+
+### Added
+- The Claude Code plugin declares `userConfig` options (`messageFormat`, `dateFormat`, `ignorePatterns`,
+  `retentionDays`), so they can be set from `/plugin configure` or `/config` without editing
+  `config.json` by hand. `config.json` still wins: the file stays the single source of truth shared by
+  the extension, Claude Code, Codex CLI and OpenCode. The options intentionally declare no `default`,
+  because an unset option and an option set to its default value are indistinguishable once Claude Code
+  exports `CLAUDE_PLUGIN_OPTION_*` to the hook.
+
+### Changed
+- Snapshots are now written to one ref per branch (`refs/checkpoints/<branch>`) instead of a single
+  linear `HEAD`, and each `git worktree` keeps its own index under `<shadow>/.indexes/`. Before, several
+  worktrees of the same repository shared one index and one history, so every time the active worktree
+  changed, the next snapshot recorded a whole-tree diff between branches (measured: 846 files per commit,
+  and 1 in 3 commits was a tree already stored). Now consecutive snapshots on a branch differ only by what
+  changed in that worktree, and a snapshot whose tree is unchanged is skipped.
+- All clients (VS Code extension, Claude Code hook, Codex hook, OpenCode plugin) serialize writes on the
+  same `.checkpoint.lock`. Before, the extension used retry-and-unlink on `index.lock` only, so it could
+  delete a lock a running hook still held and make that hook's `git add` fail.
+- Restore no longer runs `git reset --hard` (which moved the shadow repository's branch along with the
+  files); it updates the index and the working tree with `git read-tree --reset -u`.
+- Extending `core.fsmonitor`/`core.untrackedcache` cleanup to every per-worktree index, not only
+  `.git/index`.
+
+### Notes
+- Existing history stays reachable: old snapshots are still under `refs/heads/main` and appear in the list
+  alongside the new per-branch refs. Nothing needs to be migrated.
+- The version is intentionally left at 1.4.0: pushing a `package.json` version change to `main` starts the
+  release workflow, which publishes to both marketplaces and tags the release.
+
 ## [1.4.0] - 2026-09-24
 
 ### Changed

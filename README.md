@@ -133,6 +133,9 @@ Work Checkpoints creates a separate "shadow" Git repository to store your snapsh
 - Snapshots are stored in `~/.work-checkpoints/`
 - Each project has its own shadow repository
 - Your main Git history is never affected
+- Snapshots are kept on one ref per branch (`refs/checkpoints/<branch>`) and each `git worktree` keeps
+  its own index under `<shadow>/.indexes/`, so saving from one worktree does not turn the next snapshot in
+  another worktree into a whole-tree diff
 - `core.fsmonitor` and `core.untrackedcache` are explicitly disabled in the shadow repository.
   They cache "what changed since last time" against a watcher bound to one directory, which does not
   survive the shadow repository being re-pointed at another workspace — the result is a snapshot that
@@ -167,6 +170,23 @@ Use the same checkpoint functionality in Claude Code. Automatically creates a ch
 ### Commands
 
 - `/work-checkpoints:restore-checkpoint` — Lists all available checkpoints and lets you select one to restore
+
+### Settings
+
+The plugin reads the same `~/.work-checkpoints/<repo-id>/config.json` as the extension, so the extension's
+settings apply to Claude's checkpoints too. When `config.json` leaves a value unset, the plugin falls back to
+its own options. Edit them with `/plugin configure work-checkpoints@work-checkpoints-plugin`, or with
+`/config`.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `messageFormat` | inherited | Snapshot message format. Variables: `${branch}`, `${date}` |
+| `dateFormat` | inherited | Date format. Tokens: `yyyy`, `MM`, `dd`, `HH`, `mm`, `ss` |
+| `ignorePatterns` | inherited | Extra ignore patterns, one per line (gitignore syntax) |
+| `retentionDays` | inherited | Days to keep snapshots before auto-deletion. `0` disables it |
+
+`config.json` wins when both are set. It is the single source of truth shared by every client (VS Code,
+Claude Code, Codex CLI, OpenCode), so a value set in the extension is not overridden from Claude Code.
 
 ### Troubleshooting
 
