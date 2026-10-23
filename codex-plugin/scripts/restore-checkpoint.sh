@@ -125,7 +125,12 @@ elif [ ! "$CONFIGURED_WORKTREE" -ef "$WORKSPACE_ROOT" ]; then
 fi
 
 # 復元を実行（core.worktree が設定されているので直接 checkout 可能）
-git -C "$SHADOW_REPO" checkout "$CHECKPOINT_ID" -- . 2>&1
+# index は保存側と同じ worktree 専用ファイルを使う。共有 index を更新すると、
+# 別 worktree のステージング状態を巻き込んでしまう。
+RESOLVED_ROOT=$(cd "$WORKSPACE_ROOT" 2>/dev/null && pwd -P) || RESOLVED_ROOT="$WORKSPACE_ROOT"
+WORKTREE_KEY=$(printf '%s' "$RESOLVED_ROOT" | shasum -a 256 | cut -c1-12)
+mkdir -p "$SHADOW_REPO/.indexes" || exit 1
+GIT_INDEX_FILE="$SHADOW_REPO/.indexes/$WORKTREE_KEY" git -C "$SHADOW_REPO" checkout "$CHECKPOINT_ID" -- . 2>&1
 rc=$?
 
 if [ "$rc" -eq 0 ]; then

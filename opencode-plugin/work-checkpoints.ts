@@ -102,53 +102,126 @@ const plugin: Plugin.Plugin = {
       }
     }
 
-    // Wait for git lock file to be released (max 3 seconds)
-    const waitForGitLock = async (shadowRepo: string) => {
-      const lockFile = `${shadowRepo}/.git/index.lock`
-      for (let i = 0; i < 6; i++) {
-        try {
-          await $`test -f ${lockFile}`.quiet()
-          await Bun.sleep(500)
-        } catch {
-          return true // lock file doesn't exist
-        }
-      }
-      return false
-    }
+    // 同一シャドウリポジトリへの書き込みを直列化する。CLI（save-checkpoint.sh）と
+    // 同じ .checkpoint.lock を使うので、クライアントが違っても排他が効く。
+    const withLock = async <T>(shadowRepo: string, fn: () => Promise<T>): Promise<T | null> => {
+      const lockDir = `${shadowRepo}/.checkpoint.lock`
+      const startedAt = Date.now()
 
-    // git add with retry (up to 3 times)
-    const safeGitAdd = async (shadowRepo: string) => {
-      for (let i = 0; i < 3; i++) {
-        if (!(await waitForGitLock(shadowRepo))) return false
+      for (;;) {
         try {
-          await $`git -C ${shadowRepo} add -A`.quiet()
-          return true
+          await $`mkdir ${lockDir}`.quiet()
+          break
         } catch {
-          await Bun.sleep(300)
-        }
-      }
-      return false
-    }
-
-    // git commit with retry (up to 3 times)
-    const safeGitCommit = async (shadowRepo: string, message: string) => {
-      for (let i = 0; i < 3; i++) {
-        if (!(await waitForGitLock(shadowRepo))) return false
-        try {
-          // Check if there are staged changes
-          await $`git -C ${shadowRepo} diff --cached --quiet`.quiet()
-          return true // no changes to commit
-        } catch {
-          // There are staged changes, try to commit
+          let ageMs = 0
           try {
-            await $`git -C ${shadowRepo} commit -m ${message}`.quiet()
-            return true
+            const stat = await $`stat -f %m ${lockDir}`.quiet()
+            ageMs = Date.now() - parseInt(stat.stdout.toString().trim(), 10) * 1000
           } catch {
-            await Bun.sleep(300)
+            // macOS 以外は stat -c %Y
+            try {
+              const stat = await $`stat -c %Y ${lockDir}`.quiet()
+              ageMs = Date.now() - parseInt(stat.stdout.toString().trim(), 10) * 1000
+            } catch {
+              ageMs = 0
+            }
           }
+          if (ageMs > 60_000) {
+            await $`rm -rf ${lockDir}`.quiet().nothrow()
+            continue
+          }
+          if (Date.now() - startedAt > 10_000) return null
+          await Bun.sleep(250)
         }
       }
-      return false
+
+      try {
+        return await fn()
+      } finally {
+        await $`rm -rf ${lockDir}`.quiet().nothrow()
+      }
+    }
+
+    // index は worktree ごとに分ける。単一の .git/index を共有したまま core.worktree を
+    // 付け替えると、別 worktree のステージング状態を巻き込み、変更の取りこぼしも起きる。
+    const indexFileFor = async (shadowRepo: string, gitRoot: string): Promise<string> => {
+      const resolved = (await $`cd ${gitRoot} && pwd -P`.quiet().nothrow()).stdout.toString().trim()
+      const key = new Bun.CryptoHasher("sha256")
+        .update(resolved || gitRoot)
+        .digest("hex")
+        .substring(0, 12)
+      const dir = `${shadowRepo}/.indexes`
+      await $`mkdir -p ${dir}`.quiet()
+      return `${dir}/${key}`
+    }
+
+    // スナップショットはブランチごとの ref へ積む。単一の HEAD に積むと、別 worktree の
+    // スナップショットが挟まるたびに「ブランチ間の全ツリー差分」が 1 コミットとして記録され、
+    // 差分表示も保存も無駄に重くなる。
+    const saveSnapshot = async (
+      shadowRepo: string,
+      gitRoot: string,
+      branch: string,
+      message: string
+    ): Promise<void> => {
+      const indexFile = await indexFileFor(shadowRepo, gitRoot)
+      const worktreeKey = indexFile.split("/").pop() ?? "worktree"
+      const ref =
+        /^[A-Za-z0-9._/-]+$/.test(branch) &&
+        branch !== "HEAD" &&
+        branch !== "unknown" &&
+        !branch.endsWith(".lock")
+          ? `refs/checkpoints/${branch}`
+          : `refs/checkpoints/${worktreeKey}`
+
+      const indexEnv = { GIT_INDEX_FILE: indexFile }
+      await $`git -C ${shadowRepo} add -A`.env(indexEnv).quiet()
+      const tree = (await $`git -C ${shadowRepo} write-tree`.env(indexEnv).quiet())
+        .stdout.toString()
+        .trim()
+
+      const refRev = (await $`git -C ${shadowRepo} rev-parse --verify --quiet ${ref}`
+        .quiet()
+        .nothrow()).stdout.toString().trim()
+      // 新しいブランチの最初のスナップショットは既存の履歴の最新につなげる（root コミットを増やさない）
+      const parent =
+        refRev ||
+        (await $`git -C ${shadowRepo} log --all -1 --format=%H`.quiet().nothrow()).stdout
+          .toString()
+          .trim()
+
+      // 親と同一のツリーなら保存しない。worktree をまたぐと、中身が変わっていないのに
+      // 「別ブランチとの差分」だけのコミットが積まれていた。
+      if (parent) {
+        const parentTree = (await $`git -C ${shadowRepo} rev-parse ${parent + "^{tree}"}`
+          .quiet()
+          .nothrow()).stdout.toString().trim()
+        if (parentTree === tree) return
+      }
+
+      // 同一秒に並んだスナップショットの順序を安定させるため、全 ref の最新より1秒後を刻む
+      let epoch = Math.floor(Date.now() / 1000)
+      const latest = (await $`git -C ${shadowRepo} log --all -1 --format=%ct`.quiet().nothrow()).stdout
+        .toString()
+        .trim()
+      const previous = parseInt(latest, 10)
+      if (!Number.isNaN(previous) && previous >= epoch) {
+        epoch = previous + 1
+      }
+      const date = `@${epoch} +0000`
+      const commitEnv = { ...indexEnv, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }
+
+      const messageFile = `${indexFile}.message`
+      await Bun.write(messageFile, message)
+      try {
+        const args = ["commit-tree", tree, ...(parent ? ["-p", parent] : []), "-F", messageFile]
+        const commit = (await $`git -C ${shadowRepo} ${args}`.env(commitEnv).quiet()).stdout
+          .toString()
+          .trim()
+        await $`git -C ${shadowRepo} update-ref ${ref} ${commit}`.quiet()
+      } finally {
+        await $`rm -f ${messageFile}`.quiet().nothrow()
+      }
     }
 
     const readConfig = async (
@@ -370,9 +443,7 @@ const plugin: Plugin.Plugin = {
         const promptText = event.prompt.text.substring(0, 500)
         const message = promptText ? `${title}\n\n${promptText}` : title
 
-        if (await safeGitAdd(shadowRepo)) {
-          await safeGitCommit(shadowRepo, message)
-        }
+        await withLock(shadowRepo, async () => saveSnapshot(shadowRepo, gitRoot, branch, message))
       } catch {
         // Never break the session due to checkpoint failure
       }

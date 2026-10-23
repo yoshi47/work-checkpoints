@@ -124,19 +124,182 @@ export class ShadowGitService {
     return this.git;
   };
 
+  // スナップショットはブランチ（worktree）ごとに別の ref へ積む。単一の HEAD に積むと、
+  // 別 worktree のスナップショットが挟まるたびに「ブランチ間の全ツリー差分」が
+  // 1 コミットとして記録され、差分表示も保存も無駄に重くなる。
+  private static checkpointRefFor = (branchName: string, fallbackKey: string): string => {
+    const branch = branchName.trim();
+    const usable =
+      branch.length > 0 &&
+      branch !== 'HEAD' &&
+      branch !== 'unknown' &&
+      /^[A-Za-z0-9._/-]+$/.test(branch) &&
+      !branch.includes('..') &&
+      !branch.endsWith('.lock');
+    return `refs/checkpoints/${usable ? branch : fallbackKey}`;
+  };
+
+  // git の index は worktree ごとに別ファイルにする。単一の .git/index を共有したまま
+  // core.worktree を付け替えると、stat 情報が毎回総入れ替えになり、fsmonitor の
+  // トークン不整合で変更を取りこぼす原因にもなる。
+  private worktreeIndexFile = async (): Promise<string> => {
+    const resolved = await fs.realpath(this.workspacePath).catch(() => this.workspacePath);
+    const key = generateRepoIdentifier(null, resolved);
+    const indexDir = path.join(this.config.shadowRepoPath, '.indexes');
+    await fs.mkdir(indexDir, { recursive: true });
+    return path.join(indexDir, key);
+  };
+
+  // 差分はワークツリーとの比較なので index が要る。まだこのワークツリーの index が
+  // 無いまま空 index で比較すると、スナップショットの全ファイルが「削除」に見える。
+  // 対象コミットのツリーで初期化した index を使う。
+  private indexForSnapshot = async (snapshotId: string): Promise<string> => {
+    const indexFile = await this.worktreeIndexFile();
+    try {
+      await fs.access(indexFile);
+    } catch {
+      await this.getIndexGit(indexFile).raw(['read-tree', snapshotId]);
+    }
+    return indexFile;
+  };
+
+  private getIndexGit = (indexFile: string): SimpleGit =>
+    simpleGit({
+      baseDir: this.config.shadowRepoPath,
+      binary: 'git',
+      maxConcurrentProcesses: 1,
+      config: [],
+      timeout: {
+        block: 30000,
+      },
+    }).env({ ...this.gitEnv(), GIT_INDEX_FILE: indexFile });
+
+  private revParseQuiet = async (git: SimpleGit, rev: string): Promise<string | null> => {
+    try {
+      const resolved = (await git.raw(['rev-parse', '--verify', '--quiet', rev])).trim();
+      return resolved || null;
+    } catch {
+      return null;
+    }
+  };
+
+  // ref にまだスナップショットが無いブランチでも履歴をつなげられるよう、全 ref の最新を返す
+  private latestCommit = async (git: SimpleGit): Promise<string | null> => {
+    try {
+      const latest = (await git.raw(['log', '--all', '-1', '--format=%H'])).trim();
+      return latest || null;
+    } catch {
+      return null;
+    }
+  };
+
+  // 同一秒に複数のスナップショットが並ぶと一覧の順序が git の内部順に依存してばらつく。
+  // 全 ref の最新コミットより必ず 1 秒以上後になる日時を渡して単調増加を保つ。
+  private monotonicDateEnv = async (): Promise<Record<string, string>> => {
+    let epoch = Math.floor(Date.now() / 1000);
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        ['-C', this.config.shadowRepoPath, 'log', '--all', '-1', '--format=%ct'],
+        { env: this.gitEnv() }
+      );
+      const previous = parseInt(stdout.trim(), 10);
+      if (!Number.isNaN(previous) && previous >= epoch) {
+        epoch = previous + 1;
+      }
+    } catch {
+      // コミットがまだ1つも無い
+    }
+    const date = `@${epoch} +0000`;
+    return { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date };
+  };
+
+  private commitTree = async (
+    tree: string,
+    parent: string | null,
+    messageFile: string,
+    env: NodeJS.ProcessEnv
+  ): Promise<string> => {
+    const args = ['-C', this.config.shadowRepoPath, 'commit-tree', tree];
+    if (parent) {
+      args.push('-p', parent);
+    }
+    args.push('-F', messageFile);
+    const { stdout } = await execFileAsync('git', args, { env });
+    return stdout.trim();
+  };
+
+  // 生きているロックを消すと、書き込み中の git が中途半端な index を残す。
+  // 消してよいのは明らかに古い残骸だけなので、経過時間で判定する。
+  private static readonly STALE_LOCK_MS = 60_000;
+  private static readonly LOCK_TIMEOUT_MS = 10_000;
+
   private removeLockFile = async (): Promise<void> => {
     const gitDir = path.join(this.config.shadowRepoPath, '.git');
-    const lockFiles = [
-      path.join(gitDir, 'index.lock'),
-      path.join(gitDir, 'HEAD.lock'),
-      path.join(gitDir, 'refs', 'heads', '*.lock'),
-    ];
-
-    for (const lockFile of lockFiles) {
+    const isStale = async (lockFile: string): Promise<boolean> => {
       try {
-        await fs.unlink(lockFile);
+        const stat = await fs.stat(lockFile);
+        return Date.now() - stat.mtimeMs > ShadowGitService.STALE_LOCK_MS;
+      } catch {
+        return false;
+      }
+    };
+
+    const candidates = [path.join(gitDir, 'index.lock'), path.join(gitDir, 'HEAD.lock')];
+    try {
+      // worktree ごとの index は .indexes/<key>.lock を作る
+      const indexDir = path.join(this.config.shadowRepoPath, '.indexes');
+      for (const entry of await fs.readdir(indexDir)) {
+        if (entry.endsWith('.lock')) {
+          candidates.push(path.join(indexDir, entry));
+        }
+      }
+    } catch {
+      // .indexes がまだ無い
+    }
+
+    for (const lockFile of candidates) {
+      try {
+        if (await isStale(lockFile)) {
+          await fs.unlink(lockFile);
+        }
       } catch {
         // Lock file doesn't exist or can't be removed
+      }
+    }
+  };
+
+  // 同一シャドウリポジトリへの書き込みを worktree をまたいで直列化する。
+  // CLI（save-checkpoint.sh / restore-checkpoint.sh / OpenCode プラグイン）と同じ
+  // .checkpoint.lock を使うので、クライアントが違っても排他が効く。
+  private acquireLock = async (): Promise<() => Promise<void>> => {
+    const lockDir = path.join(this.config.shadowRepoPath, '.checkpoint.lock');
+    const startedAt = Date.now();
+
+    for (;;) {
+      try {
+        await fs.mkdir(lockDir);
+        return async () => {
+          await fs.rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
+        };
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+          throw error;
+        }
+        let age = 0;
+        try {
+          age = Date.now() - (await fs.stat(lockDir)).mtimeMs;
+        } catch {
+          continue; // 取得と解放が競合した。すぐ再試行する
+        }
+        if (age > ShadowGitService.STALE_LOCK_MS) {
+          await fs.rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
+          continue;
+        }
+        if (Date.now() - startedAt > ShadowGitService.LOCK_TIMEOUT_MS) {
+          throw new Error('Another checkpoint operation is still running');
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
     }
   };
@@ -282,16 +445,41 @@ export class ShadowGitService {
         return;
       }
     }
+    // index は worktree ごとに分かれているので、既存の index すべてから拡張を落とす。
+    // どれか1つでも失敗したらマーカーを書かずに戻り、次回に再試行させる。
+    const indexFiles = [path.join(this.config.shadowRepoPath, '.git', 'index')];
     try {
-      await run(['update-index', '--no-fsmonitor', '--no-untracked-cache']);
-    } catch (error) {
-      // マーカーを書かずに戻るので次回再試行される。取りこぼしは無言で起きるため、
-      // ログだけでなくユーザーにも見える形で知らせる。
-      console.error('[work-checkpoints] Failed to drop fsmonitor index extensions:', error);
-      vscode.window.showWarningMessage(
-        'Work Checkpoints could not disable fsmonitor for this repository. Snapshots may omit files until this succeeds.'
-      );
-      return;
+      const indexDir = path.join(this.config.shadowRepoPath, '.indexes');
+      for (const entry of await fs.readdir(indexDir)) {
+        if (!entry.endsWith('.lock') && !entry.endsWith('.message')) {
+          indexFiles.push(path.join(indexDir, entry));
+        }
+      }
+    } catch {
+      // .indexes がまだ無い
+    }
+
+    for (const indexFile of indexFiles) {
+      try {
+        await fs.access(indexFile);
+      } catch {
+        continue;
+      }
+      try {
+        await execFileAsync(
+          'git',
+          ['-C', this.config.shadowRepoPath, 'update-index', '--no-fsmonitor', '--no-untracked-cache'],
+          { env: { ...this.gitEnv(), GIT_INDEX_FILE: indexFile } }
+        );
+      } catch (error) {
+        // マーカーを書かずに戻るので次回再試行される。取りこぼしは無言で起きるため、
+        // ログだけでなくユーザーにも見える形で知らせる。
+        console.error('[work-checkpoints] Failed to drop fsmonitor index extensions:', error);
+        vscode.window.showWarningMessage(
+          'Work Checkpoints could not disable fsmonitor for this repository. Snapshots may omit files until this succeeds.'
+        );
+        return;
+      }
     }
 
     try {
@@ -318,45 +506,68 @@ export class ShadowGitService {
     customDescription?: string
   ): Promise<SnapshotMetadata> => {
     await this.initializeIfNeeded();
-    await this.claimWorktreeBinding();
 
-    const git = this.getGit();
+    const release = await this.acquireLock();
+    try {
+      await this.claimWorktreeBinding();
 
-    // git add . で直接ワークスペースをステージング（ファイルコピー不要！）
-    await this.retryGitOperation(async () => {
-      await git.add('.');
-    });
+      const indexFile = await this.worktreeIndexFile();
+      const git = this.getIndexGit(indexFile);
+      const ref = ShadowGitService.checkpointRefFor(branchName, path.basename(indexFile));
 
-    // ステージングエリアに変更があるか確認
-    const status = await git.status();
-    if (status.staged.length === 0) {
-      throw new Error('No changes to save');
+      // ワークスペースを直接ステージングする（ファイルコピー不要）。index はこの worktree 専用
+      await this.retryGitOperation(async () => {
+        await git.add('-A');
+      });
+
+      const tree = (await git.raw(['write-tree'])).trim();
+      // ref がまだ無いブランチは、既存の履歴の最新コミットにつなげておく（root コミットを増やさない）
+      const parent =
+        (await this.revParseQuiet(git, ref)) ?? (await this.latestCommit(git));
+
+      // 親と同一のツリーなら保存する意味がない。worktree をまたいで保存すると、
+      // 中身が変わっていなくても「別ブランチとの差分」だけのコミットが積まれていた。
+      if (parent) {
+        const parentTree = (await git.raw(['rev-parse', `${parent}^{tree}`])).trim();
+        if (parentTree === tree) {
+          throw new Error('No changes to save');
+        }
+      }
+
+      const timestamp = new Date();
+      const description =
+        customDescription || this.formatDescription(branchName, timestamp, messageFormat, dateFormat);
+
+      // Always include branch name as trailer for reliable extraction later
+      const commitMessage = customDescription
+        ? `${customDescription}\n\nBranch: ${branchName}`
+        : description;
+
+      const messageFile = `${indexFile}.message`;
+      await fs.writeFile(messageFile, commitMessage, 'utf-8');
+
+      let commitHash: string;
+      try {
+        commitHash = await this.commitTree(tree, parent, messageFile, {
+          ...this.gitEnv(),
+          GIT_INDEX_FILE: indexFile,
+          ...(await this.monotonicDateEnv()),
+        });
+      } finally {
+        await fs.rm(messageFile, { force: true }).catch(() => undefined);
+      }
+
+      await git.raw(['update-ref', ref, commitHash]);
+
+      return {
+        id: commitHash.substring(0, 7),
+        branchName,
+        timestamp,
+        description,
+      };
+    } finally {
+      await release();
     }
-
-    // Create commit with metadata
-    const timestamp = new Date();
-    const description = customDescription || this.formatDescription(branchName, timestamp, messageFormat, dateFormat);
-
-    // Always include branch name as trailer for reliable extraction later
-    const commitMessage = customDescription
-      ? `${customDescription}\n\nBranch: ${branchName}`
-      : description;
-
-    await this.retryGitOperation(async () => {
-      await git.commit(commitMessage);
-    });
-
-    const log = await this.retryGitOperation(async () => {
-      return await git.log({ maxCount: 1 });
-    });
-    const latestCommit = log.latest;
-
-    return {
-      id: latestCommit?.hash.substring(0, 7) ?? '',
-      branchName,
-      timestamp,
-      description,
-    };
   };
 
   listSnapshots = async (): Promise<SnapshotMetadata[]> => {
@@ -369,7 +580,8 @@ export class ShadowGitService {
     try {
       const git = this.getGit();
       const log = await this.retryGitOperation(async () => {
-        return await git.log({ maxCount: 100 });
+        // スナップショットはブランチごとの ref に積まれるので、HEAD ではなく全 ref を辿る
+        return await git.log(['--all', '--max-count=100']);
       });
       const snapshots = log.all.map((commit) => this.parseCommitMetadata(commit));
       const result = await this.applySnapshotOverrides(snapshots);
@@ -406,7 +618,7 @@ export class ShadowGitService {
     // 直前の読み取りで素通りする。git にはこのワークスペースを GIT_WORK_TREE で渡している。
     await this.initializeIfNeeded();
 
-    const git = this.getGit();
+    const git = this.getIndexGit(await this.indexForSnapshot(snapshotId));
 
     // ファイル状態を取得 (A=追加, M=変更, D=削除)
     const nameStatusOutput = await this.retryGitOperation(async () => {
@@ -562,15 +774,23 @@ export class ShadowGitService {
     }
 
     await this.initializeIfNeeded();
-    await this.claimWorktreeBinding();
 
-    const git = this.getGit();
+    const release = await this.acquireLock();
+    try {
+      await this.claimWorktreeBinding();
 
-    // 未追跡ファイルを削除し、指定コミットに復元
-    await this.retryGitOperation(async () => {
-      await git.clean('f', ['-d']);
-      await git.reset(['--hard', snapshotId]);
-    });
+      const git = this.getIndexGit(await this.worktreeIndexFile());
+
+      // 未追跡ファイルを削除し、指定コミットに復元
+      await this.retryGitOperation(async () => {
+        await git.clean('f', ['-d']);
+        // reset --hard はシャドウリポジトリの HEAD まで動かしてしまう。スナップショットは
+        // ブランチごとの ref に積んであるので、index とワークツリーだけを差し替える。
+        await git.raw(['read-tree', '--reset', '-u', snapshotId]);
+      });
+    } finally {
+      await release();
+    }
   };
 
   deleteSnapshot = async (snapshotId: string): Promise<void> => {

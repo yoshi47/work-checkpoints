@@ -133,6 +133,9 @@ Work Checkpoints creates a separate "shadow" Git repository to store your snapsh
 - Snapshots are stored in `~/.work-checkpoints/`
 - Each project has its own shadow repository
 - Your main Git history is never affected
+- Snapshots are kept on one ref per branch (`refs/checkpoints/<branch>`) and each `git worktree` keeps
+  its own index under `<shadow>/.indexes/`, so saving from one worktree does not turn the next snapshot in
+  another worktree into a whole-tree diff
 - `core.fsmonitor` and `core.untrackedcache` are explicitly disabled in the shadow repository.
   They cache "what changed since last time" against a watcher bound to one directory, which does not
   survive the shadow repository being re-pointed at another workspace — the result is a snapshot that
