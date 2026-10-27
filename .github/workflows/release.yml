@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'package.json'
+  # A failed release (a broken action reference, a marketplace outage) must not
+  # leave the merged version unreleasable: the push event only fires once.
+  workflow_dispatch:
 
 jobs:
   check-version:
@@ -22,6 +25,14 @@ jobs:
         id: check
         run: |
           CURRENT_VERSION=$(jq -r '.version' package.json)
+          # A manual run is an explicit request to release the current version,
+          # so it does not depend on the previous commit's package.json.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual release of $CURRENT_VERSION"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           git show HEAD^:package.json > /tmp/old_package.json 2>/dev/null || echo '{"version":"0.0.0"}' > /tmp/old_package.json
           OLD_VERSION=$(jq -r '.version' /tmp/old_package.json)
 
@@ -61,7 +72,7 @@ jobs:
         run: vsce package
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v8
+        uses: actions/upload-artifact@v7
         with:
           name: vsix
           path: '*.vsix'
