@@ -6,6 +6,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-27
+
 ### Added
 - The Claude Code plugin declares `userConfig` options (`messageFormat`, `dateFormat`, `ignorePatterns`,
   `retentionDays`), so they can be set from `/plugin configure` or `/config` without editing
@@ -32,8 +34,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ### Notes
 - Existing history stays reachable: old snapshots are still under `refs/heads/main` and appear in the list
   alongside the new per-branch refs. Nothing needs to be migrated.
-- The version is intentionally left at 1.4.0: pushing a `package.json` version change to `main` starts the
-  release workflow, which publishes to both marketplaces and tags the release.
 
 ## [1.4.0] - 2026-09-24
 
