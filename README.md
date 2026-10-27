@@ -232,7 +232,7 @@ Use the same checkpoint functionality in [OpenCode](https://opencode.ai/). Autom
 Requires OpenCode v2.
 
 ```bash
-opencode plugin add github:yoshi47/work-checkpoints#v1.4.0
+opencode plugin add github:yoshi47/work-checkpoints#v1.5.0
 ```
 
 Keep the `#v<version>` tag and use the latest [release](https://github.com/yoshi47/work-checkpoints/releases).
@@ -242,7 +242,7 @@ so an untagged install does not pick up new commits.
 To enable it for one project only, list it in `.opencode/opencode.json` instead:
 
 ```json
-{ "plugins": ["github:yoshi47/work-checkpoints#v1.4.0"] }
+{ "plugins": ["github:yoshi47/work-checkpoints#v1.5.0"] }
 ```
 
 To update, swap the tag:
