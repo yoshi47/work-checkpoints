@@ -1,4 +1,4 @@
-import simpleGit, { SimpleGit } from 'simple-git';
+import { simpleGit, SimpleGit } from 'simple-git';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { execFile } from 'child_process';
@@ -67,8 +67,9 @@ export class ShadowGitService {
 
   // shadow repo が外側の git 環境に影響されないよう、git 実行に必要な
   // 環境変数のみを allowlist で渡す。GIT_* を除外することで Dev Container
-  // 対応を維持しつつ、simple-git 3.36+ の unsafe env ブロック
-  // (EDITOR / PAGER / SSH_ASKPASS / git_* 等) を回避する。
+  // 対応を維持しつつ、simple-git の環境ガード (EDITOR / PAGER / SSH_ASKPASS /
+  // git_* 等) を回避する。GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE は shadow repo
+  // の操作に必須なので、simple-git 側の allowEnvironment で個別に許可する。
   private static readonly allowedEnvKeys = [
     'PATH',
     'HOME',
@@ -116,6 +117,7 @@ export class ShadowGitService {
         binary: 'git',
         maxConcurrentProcesses: 1,
         config: [],
+        allowEnvironment: ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'],
         timeout: {
           block: 30000, // 30 seconds timeout for blocking operations
         },
@@ -169,6 +171,7 @@ export class ShadowGitService {
       binary: 'git',
       maxConcurrentProcesses: 1,
       config: [],
+      allowEnvironment: ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'],
       timeout: {
         block: 30000,
       },

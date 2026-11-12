@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { AutoCleanupService } from '../../services/autoCleanupService';
 import { ShadowGitService } from '../../services/shadowGitService';
 import { SHADOW_REPO_BASE_PATH } from '../../utils/constants';

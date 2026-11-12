@@ -3,7 +3,7 @@ import * as fs from 'fs/promises';
 import * as fssync from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 import { WorkspaceService } from '../../services/workspaceService';
 
 // Resolve symlinks for macOS /var -> /private/var
