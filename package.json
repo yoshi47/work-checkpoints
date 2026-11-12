@@ -400,7 +400,7 @@
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.28.1",
-    "eslint": "^9.39.1",
+    "eslint": "^10.13.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.3"
   },
